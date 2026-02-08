@@ -9,7 +9,8 @@ class TrustedTimeDesktop extends TrustedTimePlatform {
   final Stopwatch _stopwatch = Stopwatch()..start();
 
   @override
-  Future<String?> getPlatformVersion() async => 'Desktop (Dart Full-Fidelity Fallback)';
+  Future<String?> getPlatformVersion() async =>
+      'Desktop (Dart Full-Fidelity Fallback)';
 
   @override
   Future<int?> getUptimeMs() async {
