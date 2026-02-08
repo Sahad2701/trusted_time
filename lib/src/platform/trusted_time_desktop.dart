@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'trusted_time_platform_interface.dart';
+import '../../trusted_time_platform_interface.dart';
 
 /// A pure-Dart implementation of the TrustedTime platform for Desktop.
 ///

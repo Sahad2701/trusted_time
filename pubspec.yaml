@@ -43,7 +43,7 @@ flutter:
         pluginClass: TrustedTimePlugin
       web:
         pluginClass: TrustedTimeWeb
-        fileName: lib/trusted_time_web.dart
+        fileName: src/platform/trusted_time_web.dart
 
 topics:
   - time

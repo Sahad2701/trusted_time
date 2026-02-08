@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 import 'package:web/web.dart' as web;
-import 'trusted_time_platform_interface.dart';
+import '../../trusted_time_platform_interface.dart';
 
 /// A web-specific implementation of the TrustedTime platform.
 ///

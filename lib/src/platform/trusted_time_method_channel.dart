@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import 'trusted_time_platform_interface.dart';
+import '../../trusted_time_platform_interface.dart';
 
 /// The default [MethodChannel]-based implementation for mobile platforms.
 ///
