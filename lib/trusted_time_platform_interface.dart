@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'src/platform/platform_stub.dart'
     if (dart.library.io) 'src/platform/platform_io.dart'
