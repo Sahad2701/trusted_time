@@ -1,5 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'dart:io' show Platform;
 import 'trusted_time_method_channel.dart';
+import 'trusted_time_web.dart';
+import 'trusted_time_desktop.dart';
 
 /// The common interface for all platform-specific implementations of TrustedTime.
 ///
@@ -11,7 +15,18 @@ abstract class TrustedTimePlatform extends PlatformInterface {
 
   static final Object _token = Object();
 
-  static TrustedTimePlatform _instance = MethodChannelTrustedTime();
+  static TrustedTimePlatform _instance = _getDefaultInstance();
+
+  static TrustedTimePlatform _getDefaultInstance() {
+    if (kIsWeb) {
+      return TrustedTimeWeb();
+    }
+    if (Platform.isAndroid || Platform.isIOS) {
+      return MethodChannelTrustedTime();
+    }
+    // Fallback for Windows, Linux, and macOS
+    return TrustedTimeDesktop();
+  }
 
   /// The active platform-specific implementation instance.
   ///
