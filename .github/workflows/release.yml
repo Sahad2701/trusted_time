@@ -1,0 +1,140 @@
+name: Release and Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump strategy (patch, minor, major, manual)'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - manual
+      manual_version:
+        description: 'Manual version string (only used if bump_type is manual)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  id-token: write # Required for pub.dev OIDC publishing
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze project
+        run: flutter analyze --fatal-infos
+
+      - name: Run tests
+        run: flutter test
+
+  release:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required to get all tags
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump Version and Generate Notes
+        id: versioning
+        run: |
+          # 1. GET CURRENT AND LAST VERSION
+          current_version=$(grep '^version: ' pubspec.yaml | sed 's/version: //')
+          last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Last tag was $last_tag"
+
+          # 2. CALCULATE NEW VERSION
+          if [ "${{ github.event.inputs.bump_type }}" == "manual" ]; then
+            if [ -z "${{ github.event.inputs.manual_version }}" ]; then
+              echo "Error: 'manual_version' is required for manual bump."
+              exit 1
+            fi
+            new_version="${{ github.event.inputs.manual_version }}"
+          else
+            IFS='.' read -r -a parts <<< "$current_version"
+            major=${parts[0]}
+            minor=${parts[1]}
+            patch=${parts[2]}
+
+            case "${{ github.event.inputs.bump_type }}" in
+              "patch") patch=$((patch + 1));;
+              "minor") minor=$((minor + 1)); patch=0;;
+              "major") major=$((major + 1)); minor=0; patch=0;;
+            esac
+            new_version="$major.$minor.$patch"
+          fi
+          echo "Bumping version from $current_version to $new_version"
+          echo "NEW_VERSION=$new_version" >> $GITHUB_ENV
+
+          # 3. UPDATE pubspec.yaml
+          sed -i "s/^version: .*/version: $new_version/" pubspec.yaml
+          
+          # 4. GENERATE RELEASE NOTES from commits since last tag
+          echo "### Changes since $last_tag" > RELEASE_NOTES_TMP.md
+          echo "" >> RELEASE_NOTES_TMP.md
+          git log ${last_tag}..HEAD --pretty=format:"* %s (%h)" >> RELEASE_NOTES_TMP.md
+
+          # 5. UPDATE CHANGELOG.md (or create it)
+          touch CHANGELOG.md
+          {
+            echo "## [$new_version] - $(date +'%Y-%m-%d')"
+            echo ""
+            cat RELEASE_NOTES_TMP.md
+            echo ""
+            cat CHANGELOG.md
+          } > CHANGELOG.tmp
+          mv CHANGELOG.tmp CHANGELOG.md
+
+      - name: Commit and Push Changes
+        run: |
+          git add pubspec.yaml CHANGELOG.md
+          git commit -m "chore(release): bump version to ${{ env.NEW_VERSION }}"
+          git tag v${{ env.NEW_VERSION }}
+          git push origin main --tags
+
+      - name: Publish to pub.dev
+        uses: dart-lang/setup-dart@v1
+        with:
+          # This enables trusted publishing and runs `dart pub publish --force`
+          publish-to-pub-dev: true
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.NEW_VERSION }}
+          body_path: RELEASE_NOTES_TMP.md
+          name: TrustedTime v${{ env.NEW_VERSION }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
