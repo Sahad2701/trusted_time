@@ -68,11 +68,25 @@ jobs:
       - name: Bump Version and Generate Notes
         id: versioning
         run: |
+          set -ex # Exit on error, print commands
+
+          echo "--- Starting Version Bump and Changelog Generation ---"
+          
           # 1. GET CURRENT AND LAST VERSION
+          echo "Reading current version from pubspec.yaml..."
           current_version=$(grep '^version: ' pubspec.yaml | sed 's/version: //')
+          echo "Current version from pubspec.yaml: $current_version"
+          
+          echo "Finding last git tag..."
           last_tag=$(git describe --tags --abbrev=0 2>/dev/null)
+          if [ -z "$last_tag" ]; then
+            echo "No previous tag found."
+          else
+            echo "Found last tag: $last_tag"
+          fi
           
           # 2. CALCULATE NEW VERSION
+          echo "Calculating new version based on bump type: ${{ github.event.inputs.bump_type }}"
           if [ "${{ github.event.inputs.bump_type }}" == "manual" ]; then
             if [ -z "${{ github.event.inputs.manual_version }}" ]; then
               echo "Error: 'manual_version' is required for manual bump."
@@ -84,6 +98,7 @@ jobs:
             major=${parts[0]}
             minor=${parts[1]}
             patch=${parts[2]}
+            echo "Parsed version parts: major=$major, minor=$minor, patch=$patch"
 
             case "${{ github.event.inputs.bump_type }}" in
               "patch") patch=$((patch + 1));;
@@ -96,19 +111,34 @@ jobs:
           echo "NEW_VERSION=$new_version" >> $GITHUB_ENV
 
           # 3. UPDATE pubspec.yaml
+          echo "--- Updating pubspec.yaml ---"
+          echo "Content before update:"
+          cat pubspec.yaml
           sed -i "s/^version: .*/version: $new_version/" pubspec.yaml
+          echo "Content after update:"
+          cat pubspec.yaml
+          echo "----------------------------"
           
           # 4. GENERATE RELEASE NOTES (handles initial release)
+          echo "--- Generating Release Notes ---"
           if [ -z "$last_tag" ]; then
+            echo "No previous tag found. Generating changelog for initial release."
             echo "Initial release" > RELEASE_NOTES_TMP.md
             git log --pretty=format:"* %s (%h)" >> RELEASE_NOTES_TMP.md
           else
+            echo "Found last tag: $last_tag. Generating changelog from ${last_tag}..HEAD."
             echo "Changes since $last_tag" > RELEASE_NOTES_TMP.md
             git log ${last_tag}..HEAD --pretty=format:"* %s (%h)" >> RELEASE_NOTES_TMP.md
           fi
+          echo "--- Generated Release Notes (RELEASE_NOTES_TMP.md) ---"
+          cat RELEASE_NOTES_TMP.md
+          echo "----------------------------------------------------"
 
           # 5. UPDATE CHANGELOG.md (or create it)
+          echo "--- Updating CHANGELOG.md ---"
           touch CHANGELOG.md
+          echo "Content before update:"
+          cat CHANGELOG.md
           {
             echo "## [$new_version] - $(date +'%Y-%m-%d')"
             echo ""
@@ -117,12 +147,28 @@ jobs:
             cat CHANGELOG.md
           } > CHANGELOG.tmp
           mv CHANGELOG.tmp CHANGELOG.md
+          echo "Content after update:"
+          cat CHANGELOG.md
+          echo "----------------------------"
 
       - name: Commit and Push Changes
         run: |
+          set -ex # Exit on error, print commands
+
+          echo "--- Committing and Pushing Changes ---"
+          echo "Staging files: pubspec.yaml, CHANGELOG.md"
           git add pubspec.yaml CHANGELOG.md
+          
+          echo "Showing staged changes:"
+          git diff --staged
+
+          echo "Committing with message: chore(release): bump version to ${{ env.NEW_VERSION }}"
           git commit -m "chore(release): bump version to ${{ env.NEW_VERSION }}"
+          
+          echo "Creating git tag: v${{ env.NEW_VERSION }}"
           git tag v${{ env.NEW_VERSION }}
+          
+          echo "Pushing commit and tags to origin main..."
           git push origin main --tags
 
       - name: Publish to pub.dev
