@@ -78,7 +78,8 @@ jobs:
           echo "Current version from pubspec.yaml: $current_version"
           
           echo "Finding last git tag..."
-          last_tag=$(git describe --tags --abbrev=0 2>/dev/null)
+          # This handles the case where no tags exist yet, preventing the script from exiting.
+          last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [ -z "$last_tag" ]; then
             echo "No previous tag found."
           else
