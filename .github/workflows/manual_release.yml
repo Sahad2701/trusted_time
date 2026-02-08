@@ -1,0 +1,106 @@
+name: Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump strategy (minor, major, or manual)'
+        required: true
+        default: 'minor'
+        type: choice
+        options:
+          - minor
+          - major
+          - manual
+      manual_version:
+        description: 'Manual version string (only used if bump_type is manual)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  # This job is a direct copy of the validation from the main CI.
+  # We run it here to ensure that a manual release is always validated.
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: 'stable' }
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed .
+      - run: flutter analyze --fatal-infos
+      - run: flutter test
+
+  release:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: subosito/flutter-action@v2
+        with: { channel: 'stable' }
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump Version and Generate Notes
+        id: versioning
+        run: |
+          set -ex
+          current_version=$(grep '^version: ' pubspec.yaml | sed 's/version: //')
+          last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ "${{ github.event.inputs.bump_type }}" == "manual" ]; then
+            new_version="${{ github.event.inputs.manual_version }}"
+          else
+            IFS='.' read -r -a parts <<< "$current_version"
+            major=${parts[0]}; minor=${parts[1]}; patch=${parts[2]};
+            case "${{ github.event.inputs.bump_type }}" in
+              "minor") minor=$((minor + 1)); patch=0;;
+              "major") major=$((major + 1)); minor=0; patch=0;;
+            esac
+            new_version="$major.$minor.$patch"
+          fi
+          echo "NEW_VERSION=$new_version" >> $GITHUB_ENV
+          sed -i "s/^version: .*/version: $new_version/" pubspec.yaml
+          if [ -z "$last_tag" ]; then
+            notes=$(git log --pretty=format:"* %s (%h)")
+          else
+            notes=$(git log ${last_tag}..HEAD --pretty=format:"* %s (%h)")
+          fi
+          echo -e "### Changes\n\n$notes" > RELEASE_NOTES_TMP.md
+          touch CHANGELOG.md
+          {
+            echo "## $new_version"
+            echo ""
+            cat RELEASE_NOTES_TMP.md
+            echo ""
+            cat CHANGELOG.md
+          } > CHANGELOG.tmp
+          mv CHANGELOG.tmp CHANGELOG.md
+
+      - name: Commit and Push Changes
+        run: |
+          set -ex
+          git add pubspec.yaml CHANGELOG.md
+          git commit -m "chore(release): bump version to ${{ env.NEW_VERSION }}"
+          git tag v${{ env.NEW_VERSION }}
+          git push origin main --tags
+
+      - name: Publish to pub.dev
+        uses: dart-lang/setup-dart@v1
+        with: { publish-to-pub-dev: true }
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.NEW_VERSION }}
+          body_path: RELEASE_NOTES_TMP.md
+          name: TrustedTime v${{ env.NEW_VERSION }}
+          draft: false
+          prerelease: false
+        env: { GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} }
