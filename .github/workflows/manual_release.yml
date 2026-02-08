@@ -93,7 +93,8 @@ jobs:
 
       - name: Publish to pub.dev
         uses: dart-lang/setup-dart@v1
-        with: { publish-to-pub-dev: true }
+        with:
+          publish-to-pub-dev: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -103,4 +104,5 @@ jobs:
           name: TrustedTime v${{ env.NEW_VERSION }}
           draft: false
           prerelease: false
-        env: { GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

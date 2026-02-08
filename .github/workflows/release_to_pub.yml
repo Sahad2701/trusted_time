@@ -53,7 +53,7 @@ jobs:
           else
             # Check if the latest commit is a release commit to prevent empty releases
             last_commit_msg=$(git log -1 --pretty=%B)
-            if [[ "$last_commit_msg" == chore(release):* ]]; then
+            if [[ "$last_commit_msg" == "chore(release):"* ]]; then
               echo "Last commit was a release. No new changes to publish."
               exit 78 # Special exit code to skip further steps
             fi
