@@ -5,13 +5,13 @@
 Pod::Spec.new do |s|
   s.name             = 'trusted_time'
   s.version          = '0.0.1'
-  s.summary          = 'A new Flutter plugin project.'
+  s.summary          = 'Tamper-proof, multi-source trusted time for Flutter.'
   s.description      = <<-DESC
-A new Flutter plugin project.
+A high-integrity time engine that provides reliable timestamps immune to system clock manipulation by anchoring network time to hardware monotonic oscillators.
                        DESC
-  s.homepage         = 'http://example.com'
+  s.homepage         = 'https://github.com/Sahad2701/trusted_time'
   s.license          = { :file => '../LICENSE' }
-  s.author           = { 'Your Company' => 'email@example.com' }
+  s.author           = { 'TrustedTime Maintainers' => 'https://github.com/Sahad2701/trusted_time' }
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
   s.dependency 'Flutter'

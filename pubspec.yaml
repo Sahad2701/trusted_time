@@ -18,6 +18,9 @@ dependencies:
   plugin_platform_interface: ^2.1.8
   intl: ^0.20.2
   ntp: ^2.0.0
+  web: ^0.5.1
+  flutter_web_plugins:
+    sdk: flutter
 
 dev_dependencies:
   flutter_test:
@@ -32,6 +35,15 @@ flutter:
         pluginClass: TrustedTimePlugin
       ios:
         pluginClass: TrustedTimePlugin
+      macos:
+        pluginClass: TrustedTimePlugin
+      windows:
+        pluginClass: TrustedTimePlugin
+      linux:
+        pluginClass: TrustedTimePlugin
+      web:
+        pluginClass: TrustedTimeWeb
+        fileName: lib/trusted_time_web.dart
 
 topics:
   - time

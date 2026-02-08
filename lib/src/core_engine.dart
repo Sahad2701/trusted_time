@@ -259,8 +259,8 @@ class TrustedTime {
       TrustedTimePlatform.instance.setClockTamperCallback(_onClockTampered);
     } catch (_) {}
 
-    // Initial background sync.
-    await _performSync();
+    // Initial background sync with reboot validation.
+    await _validateOrResync();
 
     // Setup periodic refresh.
     _setupRefreshTimer();
