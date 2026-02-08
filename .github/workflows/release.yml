@@ -70,9 +70,8 @@ jobs:
         run: |
           # 1. GET CURRENT AND LAST VERSION
           current_version=$(grep '^version: ' pubspec.yaml | sed 's/version: //')
-          last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "Last tag was $last_tag"
-
+          last_tag=$(git describe --tags --abbrev=0 2>/dev/null)
+          
           # 2. CALCULATE NEW VERSION
           if [ "${{ github.event.inputs.bump_type }}" == "manual" ]; then
             if [ -z "${{ github.event.inputs.manual_version }}" ]; then
@@ -99,10 +98,14 @@ jobs:
           # 3. UPDATE pubspec.yaml
           sed -i "s/^version: .*/version: $new_version/" pubspec.yaml
           
-          # 4. GENERATE RELEASE NOTES from commits since last tag
-          echo "### Changes since $last_tag" > RELEASE_NOTES_TMP.md
-          echo "" >> RELEASE_NOTES_TMP.md
-          git log ${last_tag}..HEAD --pretty=format:"* %s (%h)" >> RELEASE_NOTES_TMP.md
+          # 4. GENERATE RELEASE NOTES (handles initial release)
+          if [ -z "$last_tag" ]; then
+            echo "Initial release" > RELEASE_NOTES_TMP.md
+            git log --pretty=format:"* %s (%h)" >> RELEASE_NOTES_TMP.md
+          else
+            echo "Changes since $last_tag" > RELEASE_NOTES_TMP.md
+            git log ${last_tag}..HEAD --pretty=format:"* %s (%h)" >> RELEASE_NOTES_TMP.md
+          fi
 
           # 5. UPDATE CHANGELOG.md (or create it)
           touch CHANGELOG.md
