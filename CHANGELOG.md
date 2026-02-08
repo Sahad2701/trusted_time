@@ -1,3 +1,11 @@
+## 1.0.3
+
+### Changes
+
+* Fix workflows: formatting and release check (fa4e61a)
+* Format env block in release workflow (35168a2)
+* Add automated release workflows and iOS packaging (68949cd)
+
 ## 1.0.1
 
 - **Chore**: Implemented a fully automated release and publishing workflow using GitHub Actions.
