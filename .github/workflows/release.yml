@@ -1,0 +1,63 @@
+name: Release and Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump strategy (patch, minor, major, manual)'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - manual
+      manual_version:
+        description: 'Manual version string (only used if bump_type is manual)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  id-token: write # Required for pub.dev OIDC publishing
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump Version
+        run: |
+          ./scripts/bump_version.sh ${{ github.event.inputs.bump_type }} ${{ github.event.inputs.manual_version }}
+
+      - name: Commit and Push Changes
+        run: |
+          VERSION=$(grep '^version: ' pubspec.yaml | sed 's/version: //')
+          git add pubspec.yaml CHANGELOG.md
+          git commit -m "chore: release v$VERSION"
+          git tag v$VERSION
+          git push origin main --tags
+
+      - name: Publish to pub.dev
+        uses: dart-lang/setup-dart@v1
+      
+      - name: Run Publish
+        run: |
+          # Use OIDC publishing
+          # Requires 'id-token: write' permission and pub.dev configuration
+          dart pub publish --force
