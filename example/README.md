@@ -14,7 +14,7 @@ This project demonstrates how to implement **high-integrity timekeeping** in a r
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/trusted-time/trusted_time.git
+    git clone https://github.com/Sahad2701/trusted_time.git
     cd trusted_time/example
     ```
 
