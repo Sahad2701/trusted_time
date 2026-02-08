@@ -4,8 +4,8 @@ import 'network_resolver.dart';
 
 /// A high-performance resolver that fetches trusted time using the NTP protocol.
 ///
-/// NTP (Network Time Protocol) provides sub-millisecond precision by using 
-/// specialized hardware timestamps at the server level. This implementation 
+/// NTP (Network Time Protocol) provides sub-millisecond precision by using
+/// specialized hardware timestamps at the server level. This implementation
 /// ensures resilience by querying multiple Tier-1 pools simultaneously.
 ///
 /// **Reliability Strategy:**
@@ -29,28 +29,30 @@ abstract final class NtpTimeResolver {
     final queries = <Future<void>>[];
 
     for (final server in _servers) {
-      queries.add(_query(server).then((off) {
-        if (off != null) offsets.add(off);
-      }));
+      queries.add(
+        _query(server).then((off) {
+          if (off != null) offsets.add(off);
+        }),
+      );
     }
 
     // We wait for the quorum to respond or the hard timeout to trigger.
     // Eager error is false to allow partial success if at least two servers agree.
     try {
-      await Future.wait(queries, eagerError: false).timeout(
-        _timeout,
-        onTimeout: () => [],
-      );
+      await Future.wait(
+        queries,
+        eagerError: false,
+      ).timeout(_timeout, onTimeout: () => []);
     } catch (_) {}
 
     if (offsets.length < _minQuorum) return null;
 
     // Reject outliers via median filter.
-    // This is a statistical guard against individual server drift or 
+    // This is a statistical guard against individual server drift or
     // network congestion on specific UDP paths.
     offsets.sort();
     final median = offsets[offsets.length ~/ 2];
-    
+
     // Spread calculation: the millisecond delta between fastest/slowest response.
     final spread = offsets.last - offsets.first;
 

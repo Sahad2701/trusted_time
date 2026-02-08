@@ -48,19 +48,19 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     // to return a mathematically correct time, not a placeholder.
-    _now = TrustedTime.now(); 
+    _now = TrustedTime.now();
 
     // Instead of polling or guessing when drift happens, we subscribe to the
-    // source of truth. The engine notifies us exactly when the network consensus 
+    // source of truth. The engine notifies us exactly when the network consensus
     // shifts the anchor, keeping our UI strictly consistent with the server.
     _resyncSubscription = TrustedTime.onResync.listen((_) => _refreshTime());
 
-
     // If the user manually changes the system clock, we want to know immediately.
-    // This allows the UI to show a "Security Alert" or disable sensitive buttons 
+    // This allows the UI to show a "Security Alert" or disable sensitive buttons
     // without waiting for the next network sync.
-    _integrityLostSubscription =
-        TrustedTime.onIntegrityLost.listen((_) => _refreshTime());
+    _integrityLostSubscription = TrustedTime.onIntegrityLost.listen(
+      (_) => _refreshTime(),
+    );
   }
 
   @override
@@ -79,7 +79,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _forceSync() async {
-    // This triggers network I/O and server load. Use only for critical checkpoints 
+    // This triggers network I/O and server load. Use only for critical checkpoints
     // (e.g., just before a payment or license validation).
     await TrustedTime.forceResync();
   }
@@ -102,10 +102,12 @@ class _HomePageState extends State<HomePage> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            // In a real stopwatch/countdown UI, you would wrap this Text widget 
+            // In a real stopwatch/countdown UI, you would wrap this Text widget
             // in a `Ticker` or `StreamBuilder.periodic` to update every second.
-            Text(_now.toString(),
-                style: const TextStyle(fontFamily: 'monospace')),
+            Text(
+              _now.toString(),
+              style: const TextStyle(fontFamily: 'monospace'),
+            ),
             const SizedBox(height: 24),
             Row(
               children: [

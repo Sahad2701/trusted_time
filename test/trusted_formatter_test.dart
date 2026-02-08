@@ -18,33 +18,38 @@ void main() {
     test('rfc1123() returns valid HTTP-date format', () {
       final rfc = TrustedTimeFormat.rfc1123();
       // Example: Sat, 07 Feb 2026 15:43:12 GMT
-      expect(rfc, matches(r'^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$'));
+      expect(
+        rfc,
+        matches(
+          r'^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$',
+        ),
+      );
     });
 
     test('relativeToNow() returns correct strings with reference time', () {
       final baseNow = DateTime(2026, 2, 7, 10, 0, 0);
-      
+
       expect(
-        TrustedTimeFormat.relativeToNow(baseNow, relativeTo: baseNow), 
-        equals('just now')
+        TrustedTimeFormat.relativeToNow(baseNow, relativeTo: baseNow),
+        equals('just now'),
       );
 
       final future = baseNow.add(const Duration(minutes: 5));
       expect(
-        TrustedTimeFormat.relativeToNow(future, relativeTo: baseNow), 
-        equals('in 5 minutes')
+        TrustedTimeFormat.relativeToNow(future, relativeTo: baseNow),
+        equals('in 5 minutes'),
       );
 
       final past = baseNow.subtract(const Duration(hours: 2));
       expect(
-        TrustedTimeFormat.relativeToNow(past, relativeTo: baseNow), 
-        equals('2 hours ago')
+        TrustedTimeFormat.relativeToNow(past, relativeTo: baseNow),
+        equals('2 hours ago'),
       );
 
       final yesterday = baseNow.subtract(const Duration(days: 1));
       expect(
-        TrustedTimeFormat.relativeToNow(yesterday, relativeTo: baseNow), 
-        equals('yesterday')
+        TrustedTimeFormat.relativeToNow(yesterday, relativeTo: baseNow),
+        equals('yesterday'),
       );
     });
 

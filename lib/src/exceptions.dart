@@ -30,7 +30,7 @@ class TrustedTimeException implements Exception {
 
 /// Thrown when the engine cannot establish its initial communication bridge.
 ///
-/// This typically indicates a missing platform manifest entry (on Android) 
+/// This typically indicates a missing platform manifest entry (on Android)
 /// or a failure to retrieve the initial monotonic uptime from the hardware.
 class TrustedTimeInitializationException extends TrustedTimeException {
   const TrustedTimeInitializationException(

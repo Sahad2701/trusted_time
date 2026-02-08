@@ -29,17 +29,17 @@ class NetworkTimeResult {
 /// A high-performance resolver using an HTTPS-based multi-source quorum.
 ///
 /// This resolver is designed for maximum compatibility, working in environments
-/// where UDP (NTP) might be restricted. It leverages standard HTTPS traffic 
+/// where UDP (NTP) might be restricted. It leverages standard HTTPS traffic
 /// to derive a high-trust time anchor.
 ///
 /// **The Algorithm:**
-/// It implements a refined version of **Marzullo's Algorithm**. By querying 
-/// multiple high-availability sources and identifying the widest overlapping 
-/// interval of agreement, it can effectively reject outliers and account 
+/// It implements a refined version of **Marzullo's Algorithm**. By querying
+/// multiple high-availability sources and identifying the widest overlapping
+/// interval of agreement, it can effectively reject outliers and account
 /// for network asymmetric delay.
 abstract final class NetworkTimeResolver {
   /// Tier-1 public time sources used for HTTPS quorum.
-  /// We select these specific providers for their global distribution and 
+  /// We select these specific providers for their global distribution and
   /// high-precision "date" header adherence.
   static const List<String> defaultSources = <String>[
     'https://www.google.com',
@@ -66,8 +66,8 @@ abstract final class NetworkTimeResolver {
     }
 
     // We establish a "Temporal Baseline" before launching parallel requests.
-    // By anchoring every response to the same local monotonic timeline, we 
-    // ensure that the final consensus is mathematically perfect even if the 
+    // By anchoring every response to the same local monotonic timeline, we
+    // ensure that the final consensus is mathematically perfect even if the
     // system clock is manually adjusted during the synchronization process.
     final bMs = DateTime.now().millisecondsSinceEpoch;
     final bSw = Stopwatch()..start();
@@ -97,7 +97,6 @@ abstract final class NetworkTimeResolver {
     );
   }
 
-
   // Source querying
 
   static Future<_TimeInterval?> _querySource(
@@ -119,7 +118,7 @@ abstract final class NetworkTimeResolver {
 
       final rtt = sSw.elapsedMilliseconds;
       final date = resp.headers['date'];
-      
+
       // Accuracy Check: We reject results with unreasonable latency (RTT).
       // High latency introduces significant uncertainty in the midpoint estimation.
       if (date == null || rtt > _maxRtt.inMilliseconds) return null;
