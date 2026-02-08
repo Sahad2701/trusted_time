@@ -36,7 +36,7 @@ class TrustedTimeConfig {
   /// The strict latency cutoff for network requests.
   ///
   /// We reject any time packet that takes longer than this duration to arrive.
-  /// High latency introduces significant uncertainty into the "midpoint" 
+  /// High latency introduces significant uncertainty into the "midpoint"
   /// calculation, so we prioritize precision over connectivity here.
   final Duration maxRequestLatency;
 
@@ -71,7 +71,7 @@ class TrustedTimeConfig {
 ///
 /// **The Philosophy:**
 /// We don't just "fetch the time." We anchor a verified UTC network timestamp
-/// to the device's internal monotonic hardware uptime. Because the hardware 
+/// to the device's internal monotonic hardware uptime. Because the hardware
 /// uptime is a simple incrementing counter that cannot be adjusted by the user,
 /// we can calculate the current "true" time synchronously with sub-millisecond
 /// overhead using this formula:
@@ -128,14 +128,13 @@ class TrustedTime {
   /// Cached DateTime for lastSyncTime to avoid redundant allocations.
   static DateTime _lastSyncTimeCache = DateTime.fromMillisecondsSinceEpoch(0);
 
-
   // Public API
 
   /// Emits whenever the internal trust anchor is invalidated.
   ///
   /// This happens if the system detects a reboot, a manual clock change,
   /// or if internal drift validation fails. Subscribers should usually
-  /// stop time-sensitive operations (like signing trials) until trust 
+  /// stop time-sensitive operations (like signing trials) until trust
   /// is re-established via [onResync].
   static Stream<void> get onIntegrityLost => _integrityLostController.stream;
 
@@ -167,13 +166,13 @@ class TrustedTime {
   /// Bootstraps the [TrustedTime] engine.
   ///
   /// This should be called early in the application lifecycle (e.g., in `main()`).
-  /// Being a `Future`, you should [await] this call to ensure the trust anchor 
-  /// is established (either from storage or network) before the rest of the 
+  /// Being a `Future`, you should [await] this call to ensure the trust anchor
+  /// is established (either from storage or network) before the rest of the
   /// app starts.
   ///
   /// **The Startup Flow:**
   /// 1. Immediately captures the native monotonic hardware uptime baseline.
-  /// 2. Restores the last known trust anchor from secure storage (if disabled, 
+  /// 2. Restores the last known trust anchor from secure storage (if disabled,
   ///    starts as untrusted).
   /// 3. Validates the hardware uptime to detect reboots during app-off time.
   /// 4. Schedules a background network sync to re-verify or establish trust.
@@ -185,7 +184,7 @@ class TrustedTime {
     _isInitializing = true;
     if (config != null) _config = config;
 
-    // We MUST capture the relative baseline immediately. The Stopwatch 
+    // We MUST capture the relative baseline immediately. The Stopwatch
     // effectively "extends" the precision of the discrete native uptime snaps.
     if (!_uptimeTicker.isRunning) {
       _uptimeTicker.start();
@@ -217,12 +216,20 @@ class TrustedTime {
             if (uptimeZero >= stored.uptimeMs) {
               _serverEpochAtSync = stored.serverEpochMs;
               _uptimeAtSync = stored.uptimeMs;
-              _lastSyncTimeCache = DateTime.fromMillisecondsSinceEpoch(_serverEpochAtSync);
+              _lastSyncTimeCache = DateTime.fromMillisecondsSinceEpoch(
+                _serverEpochAtSync,
+              );
               _estimatedDrift = Duration(milliseconds: stored.driftMs);
               _isTrusted = true;
-              developer.log('Restored trust anchor from storage.', name: 'TrustedTime');
+              developer.log(
+                'Restored trust anchor from storage.',
+                name: 'TrustedTime',
+              );
             } else {
-              developer.log('Reboot detected. Storage anchor purged.', name: 'TrustedTime');
+              developer.log(
+                'Reboot detected. Storage anchor purged.',
+                name: 'TrustedTime',
+              );
               _integrityLost = true;
             }
           }
@@ -235,9 +242,13 @@ class TrustedTime {
       // Logic Step 3: Lazy Background Operations (NON-BLOCKING).
       // We don't await these because they add "junk" latency to app boot.
       unawaited(_kickoffBackgroundServices());
-
     } catch (e, stack) {
-      developer.log('Initialization failure: $e', name: 'TrustedTime', error: e, stackTrace: stack);
+      developer.log(
+        'Initialization failure: $e',
+        name: 'TrustedTime',
+        error: e,
+        stackTrace: stack,
+      );
     }
   }
 
@@ -257,14 +268,14 @@ class TrustedTime {
 
   /// Retrieves the current high-trust time.
   ///
-  /// This operation is synchronous and extremely fast (<1μs), as it only 
-  /// performs a simple arithmetic calculation based on the established 
+  /// This operation is synchronous and extremely fast (<1μs), as it only
+  /// performs a simple arithmetic calculation based on the established
   /// trust anchor and the current hardware uptime.
   ///
-  /// **Reliability Guarantee:** 
-  /// If the engine is not yet trusted (initial sync pending), it returns the 
-  /// standard [DateTime.now()] as a fallback. After the first sync succeeds, 
-  /// all future calls are guaranteed to be immune to manual system clock 
+  /// **Reliability Guarantee:**
+  /// If the engine is not yet trusted (initial sync pending), it returns the
+  /// standard [DateTime.now()] as a fallback. After the first sync succeeds,
+  /// all future calls are guaranteed to be immune to manual system clock
   /// adjustments.
   static DateTime now() {
     if (!_isTrusted) {
@@ -294,8 +305,8 @@ class TrustedTime {
 
   /// Manually triggers a network re-verification of the trust anchor.
   ///
-  /// While the engine automatically refreshes periodically, you can 
-  /// use this to force an update if you suspect tampering or require 
+  /// While the engine automatically refreshes periodically, you can
+  /// use this to force an update if you suspect tampering or require
   /// absolute precision for a critical transaction.
   static Future<void> forceResync() async {
     await _performSync();
@@ -322,7 +333,7 @@ class TrustedTime {
     return uptime;
   }
 
-  /// Combines the last native snapshot with the high-precision ticker 
+  /// Combines the last native snapshot with the high-precision ticker
   /// to provide sub-millisecond uptime tracking.
   static int _currentUptime() {
     if (_uptimeTicker.isRunning) {
@@ -385,7 +396,9 @@ class TrustedTime {
 
       _serverEpochAtSync = result.trustedEpochMs;
       _uptimeAtSync = uptimeAfterResolve;
-      _lastSyncTimeCache = DateTime.fromMillisecondsSinceEpoch(_serverEpochAtSync);
+      _lastSyncTimeCache = DateTime.fromMillisecondsSinceEpoch(
+        _serverEpochAtSync,
+      );
       _estimatedDrift = Duration(milliseconds: result.uncertaintyMs);
       _isTrusted = true;
       _integrityLost = false;
@@ -398,7 +411,10 @@ class TrustedTime {
             uptimeMs: _uptimeAtSync,
             driftMs: result.uncertaintyMs,
           ).catchError((e) {
-            developer.log('Failed to persist trust anchor.', name: 'TrustedTime');
+            developer.log(
+              'Failed to persist trust anchor.',
+              name: 'TrustedTime',
+            );
           }),
         );
       }
@@ -407,7 +423,7 @@ class TrustedTime {
     } catch (e) {
       developer.log('Sync failed: $e', name: 'TrustedTime');
 
-      // Full Jitter backoff: randomize the exponential window to prevent 
+      // Full Jitter backoff: randomize the exponential window to prevent
       // synchronized retries (thundering herds).
       _syncRetryCount++;
       final exponentialWait = pow(2, _syncRetryCount).toInt();

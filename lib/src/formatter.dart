@@ -114,7 +114,6 @@ abstract final class TrustedTimeFormat {
   /// Returns the current trusted time as a local [DateTime] object.
   static DateTime local() => TrustedTime.now().toLocal();
 
-
   // Internal Helpers
 
   static String _formatRelative(Duration diff, int value, String unit) {
@@ -132,11 +131,27 @@ abstract final class TrustedTimeFormat {
       value.toString().padLeft(width, '0');
 
   static const List<String> _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   static const List<String> _weekdays = [
-    'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun',
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun',
   ];
 }
