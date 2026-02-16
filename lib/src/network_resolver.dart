@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io';
+import 'package:http_parser/http_parser.dart';
 import 'package:http/http.dart' as http;
 import 'exceptions.dart';
 
@@ -123,7 +123,7 @@ abstract final class NetworkTimeResolver {
       // High latency introduces significant uncertainty in the midpoint estimation.
       if (date == null || rtt > _maxRtt.inMilliseconds) return null;
 
-      final sMs = HttpDate.parse(date).millisecondsSinceEpoch;
+      final sMs = parseHttpDate(date).millisecondsSinceEpoch;
       final rMs = bMs + bSw.elapsedMilliseconds;
 
       // Midpoint Estimation: We assume symmetry in network travel time.

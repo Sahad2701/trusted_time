@@ -259,20 +259,3 @@ Limitations:
 | Drift/uncertainty metadata | ❌                | ❌                    | ❌                | ✅               |
 | Cross-platform             | ⚠️               | ⚠️                   | ❌                | ✅               |
 | Zero-latency `now()`       | ❌                | ❌                    | ❌                | ✅               |
-
----
-
-## License
-
-MIT License.
-
----
-
-## Credits
-
-Inspired by:
-
-* Google Spanner TrueTime model
-* NTP RFC 5905
-
----
