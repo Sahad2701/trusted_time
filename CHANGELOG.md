@@ -1,6 +1,11 @@
-## 1.0.3
 
-### Changes
+## 1.0.4
+
+* **Web**: Full WASM compatibility by removing `dart:io` dependencies and implementing conditional imports.
+* **macOS**: Added Swift Package Manager (SPM) support.
+
+
+## 1.0.3
 
 * Fix workflows: formatting and release check (fa4e61a)
 * Format env block in release workflow (35168a2)
