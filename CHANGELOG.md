@@ -1,8 +1,12 @@
+## 1.0.5
+
+* **iOS/macOS**: Implemented proper Swift Package Manager (SPM) support following Flutter 3.24+ standards.
+* **Chore**: Removed obsolete lint rules from `analysis_options.yaml` for Dart 3.x compatibility.
+
 
 ## 1.0.4
 
 * **Web**: Full WASM compatibility by removing `dart:io` dependencies and implementing conditional imports.
-* **macOS**: Added Swift Package Manager (SPM) support.
 
 
 ## 1.0.3

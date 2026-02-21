@@ -7,6 +7,7 @@ on:
       - completed
     branches:
       - main
+  workflow_dispatch:
 
 # Ensures that only one release task can run at a time.
 concurrency:
@@ -20,6 +21,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    environment: trusted_time
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v4
@@ -40,10 +42,16 @@ jobs:
           current_version=$(grep '^version: ' pubspec.yaml | sed 's/version: //')
           last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           
-          IFS='.' read -r -a parts <<< "$current_version"
-          major=${parts[0]}; minor=${parts[1]}; patch=${parts[2]};
-          patch=$((patch + 1))
-          new_version="$major.$minor.$patch"
+          if git rev-parse "v$current_version" >/dev/null 2>&1; then
+            echo "Version $current_version already tagged. Bumping patch version."
+            IFS='.' read -r -a parts <<< "$current_version"
+            major=${parts[0]}; minor=${parts[1]}; patch=${parts[2]};
+            patch=$((patch + 1))
+            new_version="$major.$minor.$patch"
+          else
+            echo "Version $current_version not yet tagged. Using it for release."
+            new_version="$current_version"
+          fi
           
           echo "NEW_VERSION=$new_version" >> $GITHUB_ENV
           sed -i "s/^version: .*/version: $new_version/" pubspec.yaml
@@ -55,39 +63,31 @@ jobs:
             last_commit_msg=$(git log -1 --pretty=%B)
             if [[ "$last_commit_msg" == "chore(release):"* ]]; then
               echo "Last commit was a release. No new changes to publish."
-              exit 78 # Special exit code to skip further steps
+              echo "SKIP_RELEASE=true" >> $GITHUB_OUTPUT
+              exit 0
             fi
             notes=$(git log ${last_tag}..HEAD --pretty=format:"* %s (%h)")
           fi
 
           echo -e "### Changes\n\n$notes" > RELEASE_NOTES_TMP.md
-          touch CHANGELOG.md
-          {
-            echo "## $new_version"
-            echo ""
-            cat RELEASE_NOTES_TMP.md
-            echo ""
-            cat CHANGELOG.md
-          } > CHANGELOG.tmp
-          mv CHANGELOG.tmp CHANGELOG.md
 
       - name: Commit and Push Changes
-        if: steps.versioning.outcome == 'success' # Only run if bump script didn't exit
+        if: steps.versioning.outputs.SKIP_RELEASE != 'true'
         run: |
           set -ex
-          git add pubspec.yaml CHANGELOG.md
+          git add pubspec.yaml
           git commit -m "chore(release): bump version to ${{ env.NEW_VERSION }}"
           git tag v${{ env.NEW_VERSION }}
           git push origin main --tags
 
       - name: Publish to pub.dev
-        if: steps.versioning.outcome == 'success'
+        if: steps.versioning.outputs.SKIP_RELEASE != 'true'
         uses: dart-lang/setup-dart@v1
         with:
           publish-to-pub-dev: true
 
       - name: Create GitHub Release
-        if: steps.versioning.outcome == 'success'
+        if: steps.versioning.outputs.SKIP_RELEASE != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.NEW_VERSION }}

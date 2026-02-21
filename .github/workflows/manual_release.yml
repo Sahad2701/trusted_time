@@ -38,6 +38,7 @@ jobs:
   release:
     needs: validate
     runs-on: ubuntu-latest
+    environment: trusted_time
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -73,20 +74,11 @@ jobs:
             notes=$(git log ${last_tag}..HEAD --pretty=format:"* %s (%h)")
           fi
           echo -e "### Changes\n\n$notes" > RELEASE_NOTES_TMP.md
-          touch CHANGELOG.md
-          {
-            echo "## $new_version"
-            echo ""
-            cat RELEASE_NOTES_TMP.md
-            echo ""
-            cat CHANGELOG.md
-          } > CHANGELOG.tmp
-          mv CHANGELOG.tmp CHANGELOG.md
 
       - name: Commit and Push Changes
         run: |
           set -ex
-          git add pubspec.yaml CHANGELOG.md
+          git add pubspec.yaml
           git commit -m "chore(release): bump version to ${{ env.NEW_VERSION }}"
           git tag v${{ env.NEW_VERSION }}
           git push origin main --tags
