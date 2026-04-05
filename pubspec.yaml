@@ -52,9 +52,3 @@ flutter:
         pluginClass: TrustedTimeWebPlugin
         fileName: trusted_time_web.dart
 
-topics:
-  - time
-  - ntp
-  - security
-  - tamper-proof
-  - anti-fraud
