@@ -1,4 +1,4 @@
-## 1.1.0
+## 1.2.0
 
 Major stability and accuracy update with desktop support.
 
