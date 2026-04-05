@@ -93,9 +93,6 @@ jobs:
             git push origin v${{ env.NEW_VERSION }}
           fi
 
-      - name: Publish to pub.dev
-        run: dart pub publish -f
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -106,3 +103,4 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
