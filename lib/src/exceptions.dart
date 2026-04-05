@@ -1,86 +1,46 @@
-/// Base exception for all errors produced by the TrustedTime library.
+/// Thrown when accessing [TrustedTime.now] before a successful sync has
+/// established a trust anchor.
 ///
-/// Catch this type to handle any failure related to time synchronization,
-/// initial state validation, or secure persistence.
-class TrustedTimeException implements Exception {
-  /// A descriptive message explaining the failure.
+/// This typically means [TrustedTime.initialize] has not been awaited, or
+/// the initial network sync failed.
+final class TrustedTimeNotReadyException implements Exception {
+  /// Creates a [TrustedTimeNotReadyException].
+  const TrustedTimeNotReadyException();
+
+  @override
+  String toString() =>
+      'TrustedTime is not yet trusted. '
+      'Await initialize() and ensure sync succeeded.';
+}
+
+/// Thrown when the sync engine cannot reach the required quorum of agreeing
+/// time sources.
+///
+/// This can happen if the device is completely offline, all configured
+/// servers are unreachable, or network latency exceeds the configured
+/// [TrustedTimeConfig.maxLatency].
+final class TrustedTimeSyncException implements Exception {
+  /// Creates a [TrustedTimeSyncException] with a descriptive [message].
+  const TrustedTimeSyncException(this.message);
+
+  /// Human-readable description of why consensus failed.
   final String message;
 
-  /// The underlying error (e.g., a [SocketException] or [PlatformException])
-  /// that triggered this failure, if available.
-  final dynamic originalError;
-
-  /// The stack trace associated with the [originalError].
-  final StackTrace? stackTrace;
-
-  const TrustedTimeException(
-    this.message, {
-    this.originalError,
-    this.stackTrace,
-  });
-
   @override
-  String toString() {
-    if (originalError != null) {
-      return 'TrustedTimeException: $message\nCaused by: $originalError';
-    }
-    return 'TrustedTimeException: $message';
-  }
+  String toString() => 'TrustedTimeSyncException: $message';
 }
 
-/// Thrown when the engine cannot establish its initial communication bridge.
+/// Thrown when [TrustedTime.trustedLocalTimeIn] is called with an IANA
+/// timezone identifier that does not exist in the embedded database.
 ///
-/// This typically indicates a missing platform manifest entry (on Android)
-/// or a failure to retrieve the initial monotonic uptime from the hardware.
-class TrustedTimeInitializationException extends TrustedTimeException {
-  const TrustedTimeInitializationException(
-    super.message, {
-    super.originalError,
-    super.stackTrace,
-  });
+/// Example invalid identifiers: `'Mars/Elon_City'`, `'UTC+5'`.
+final class UnknownTimezoneException implements Exception {
+  /// Creates an [UnknownTimezoneException] for the given [identifier].
+  const UnknownTimezoneException(this.identifier);
+
+  /// The unrecognized IANA timezone identifier.
+  final String identifier;
 
   @override
-  String toString() {
-    if (originalError != null) {
-      return 'TrustedTimeInitializationException: $message\nCaused by: $originalError';
-    }
-    return 'TrustedTimeInitializationException: $message';
-  }
-}
-
-/// Thrown when the engine fails to achieve a network consensus.
-///
-/// This occurs if all configured NTP and HTTPS sources are unreachable
-/// or if the responses are too inconsistent to establish a quorum.
-class TrustedTimeSyncException extends TrustedTimeException {
-  const TrustedTimeSyncException(
-    super.message, {
-    super.originalError,
-    super.stackTrace,
-  });
-
-  @override
-  String toString() {
-    if (originalError != null) {
-      return 'TrustedTimeSyncException: $message\nCaused by: $originalError';
-    }
-    return 'TrustedTimeSyncException: $message';
-  }
-}
-
-/// Thrown when reading or writing to the device's secure storage fails.
-class TrustedTimeStorageException extends TrustedTimeException {
-  const TrustedTimeStorageException(
-    super.message, {
-    super.originalError,
-    super.stackTrace,
-  });
-
-  @override
-  String toString() {
-    if (originalError != null) {
-      return 'TrustedTimeStorageException: $message\nCaused by: $originalError';
-    }
-    return 'TrustedTimeStorageException: $message';
-  }
+  String toString() => 'Unknown timezone: $identifier';
 }

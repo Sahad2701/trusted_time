@@ -78,15 +78,23 @@ jobs:
       - name: Commit and Push Changes
         run: |
           set -ex
-          git add pubspec.yaml
-          git commit -m "chore(release): bump version to ${{ env.NEW_VERSION }}"
-          git tag v${{ env.NEW_VERSION }}
-          git push origin main --tags
+          if git diff --quiet pubspec.yaml; then
+            echo "No changes to pubspec.yaml. Skipping commit."
+          else
+            git add pubspec.yaml
+            git commit -m "chore(release): bump version to ${{ env.NEW_VERSION }}"
+            git push origin main
+          fi
+          
+          if git ls-remote --tags origin | grep -q "refs/tags/v${{ env.NEW_VERSION }}$"; then
+            echo "Tag v${{ env.NEW_VERSION }} already exists. Skipping tag."
+          else
+            git tag v${{ env.NEW_VERSION }}
+            git push origin v${{ env.NEW_VERSION }}
+          fi
 
       - name: Publish to pub.dev
-        uses: dart-lang/setup-dart@v1
-        with:
-          publish-to-pub-dev: true
+        run: dart pub publish -f
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

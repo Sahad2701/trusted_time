@@ -1,3 +1,22 @@
+## 1.1.0
+
+Major stability and accuracy update with desktop support.
+
+- Added integrity monitoring (`Stream<IntegrityEvent>`)
+- Added offline time via `nowEstimated()`
+- Added testing override support
+- Improved timezone reliability (IANA-based)
+- Added Windows & Linux observers
+
+**Fixes & improvements**
+- Safer storage behavior
+- Correct config usage (NTP/HTTPS)
+- Windows & Linux stability fixes
+- SDK updates
+
+**Breaking**
+- `UnknownTimezoneException` replaces generic errors
+
 ## 1.0.5
 
 * **iOS/macOS**: Implemented proper Swift Package Manager (SPM) support following Flutter 3.24+ standards.
