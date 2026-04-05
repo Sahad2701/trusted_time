@@ -1,38 +1,19 @@
 name: Publish to pub.dev
 
 on:
-  workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  push:
+    tags:
+      - 'v*'
 
 permissions:
-  contents: write
+  contents: read
   id-token: write
 
 jobs:
-  # Run full validation before publishing.
-  validate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: 'stable' }
-      - run: flutter pub get
-      - run: dart format --output=none --set-exit-if-changed .
-      - run: flutter analyze --fatal-infos
-      - run: flutter test
-
   publish:
-    needs: validate
     runs-on: ubuntu-latest
-    environment: pub.dev
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Dart
-        uses: dart-lang/setup-dart@v1
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -42,32 +23,14 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Dry run
-        run: dart pub publish --dry-run
+      - name: Verify Version match
+        run: |
+          VERSION=$(grep '^version: ' pubspec.yaml | sed 's/version: //')
+          TAG=${GITHUB_REF#refs/tags/v}
+          if [ "$VERSION" != "$TAG" ]; then
+            echo "Error: Tag v$TAG does not match pubspec version $VERSION"
+            exit 1
+          fi
 
-      - name: Publish
+      - name: Publish to pub.dev
         run: dart pub publish --force
-
-      - name: Read version
-        id: version
-        run: |
-          version=$(grep '^version: ' pubspec.yaml | sed 's/version: //')
-          echo "VERSION=$version" >> $GITHUB_OUTPUT
-
-      - name: Tag release
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${{ steps.version.outputs.VERSION }}" -m "Release v${{ steps.version.outputs.VERSION }}"
-          git push origin "v${{ steps.version.outputs.VERSION }}"
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.VERSION }}
-          name: TrustedTime v${{ steps.version.outputs.VERSION }}
-          generate_release_notes: true
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

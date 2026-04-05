@@ -1,10 +1,17 @@
 name: trusted_time
-description: Tamper-proof, offline-safe, multi-source trusted time for Flutter. Provides reliable timestamps immune to system clock manipulation.
+description: Tamper-proof, high-precision network time for Flutter. Anchored to hardware monotonic clocks to prevent system-time manipulation.
 version: 1.1.0
 homepage: https://github.com/Sahad2701/trusted_time
 repository: https://github.com/Sahad2701/trusted_time
 issue_tracker: https://github.com/Sahad2701/trusted_time/issues
 documentation: https://pub.dev/documentation/trusted_time/latest/
+
+topics:
+  - time
+  - ntp
+  - security
+  - anti-fraud
+  - tamper-proof
 
 environment:
   sdk: ^3.9.2
