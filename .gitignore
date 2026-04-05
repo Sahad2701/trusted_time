@@ -36,3 +36,8 @@ migrate_working_dir/
 !**/gradle/wrapper/gradle-wrapper.jar
 !**/gradlew
 !**/gradlew.bat
+
+# Internal Documentation
+docs/
+
+
