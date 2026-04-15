@@ -57,7 +57,6 @@ final class SyncEngine {
 
     final uptimeMs = await _clock.uptimeMs();
     final wallMs = DateTime.now().millisecondsSinceEpoch;
-    SyncClock.update(uptimeMs, wallMs);
 
     return TrustAnchor(
       networkUtcMs: result.utc.millisecondsSinceEpoch,
