@@ -27,9 +27,11 @@ final class NtpSource implements TrustedTimeSource {
 
   @override
   Future<DateTime> queryUtc() async {
+    // Use a generous inner timeout; the SyncEngine's _querySafe applies the
+    // config's maxLatency as the authoritative outer timeout.
     final offset = await NTP.getNtpOffset(
       lookUpAddress: _host,
-      timeout: const Duration(seconds: 3),
+      timeout: const Duration(seconds: 10),
     );
     return DateTime.now().toUtc().add(Duration(milliseconds: offset));
   }

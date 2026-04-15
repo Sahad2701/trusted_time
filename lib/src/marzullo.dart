@@ -85,8 +85,13 @@ final class MarzulloEngine {
         ..add(_Endpoint(center + u, _EndpointType.upper, s.sourceId));
     }
 
-    // Sort all boundaries chronologically for linear scanning.
-    endpoints.sort((a, b) => a.timeMs.compareTo(b.timeMs));
+    // Sort by time; at equal times, lower endpoints come first so overlap
+    // counting uses closed-interval semantics (touching intervals overlap).
+    endpoints.sort((a, b) {
+      final cmp = a.timeMs.compareTo(b.timeMs);
+      if (cmp != 0) return cmp;
+      return a.type == _EndpointType.lower ? -1 : 1;
+    });
 
     var best = 0;
     int? bestStart;

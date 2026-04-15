@@ -1,26 +1,64 @@
-// In order to *not* need this ignore, consider extracting the "web" version
-// of your plugin as a separate package, instead of inlining it in the same
-// package as the core of your plugin.
-// ignore: avoid_web_libraries_in_flutter
-
+import 'package:flutter/services.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 import 'package:web/web.dart' as web;
 
 import 'trusted_time_platform_interface.dart';
 
-/// A web implementation of the TrustedTimePlatform of the TrustedTime plugin.
-class TrustedTimeWeb extends TrustedTimePlatform {
-  /// Constructs a TrustedTimeWeb
-  TrustedTimeWeb();
+/// Web implementation of the TrustedTime plugin.
+///
+/// Registers MethodChannel handlers for `trusted_time/monotonic` and
+/// `trusted_time/background` so the Dart engine can function on web.
+/// Uses `performance.now()` as the monotonic clock source.
+class TrustedTimeWebPlugin extends TrustedTimePlatform {
+  TrustedTimeWebPlugin();
 
   static void registerWith(Registrar registrar) {
-    TrustedTimePlatform.instance = TrustedTimeWeb();
+    TrustedTimePlatform.instance = TrustedTimeWebPlugin();
+
+    const MethodChannel('trusted_time/monotonic')
+        .setMethodCallHandler(_handleMonotonic);
+
+    const MethodChannel('trusted_time/background')
+        .setMethodCallHandler(_handleBackground);
+
+    const MethodChannel('trusted_time')
+        .setMethodCallHandler(_handleLegacy);
   }
 
-  /// Returns a [String] containing the version of the platform.
+  static Future<dynamic> _handleMonotonic(MethodCall call) async {
+    if (call.method == 'getUptimeMs') {
+      return web.window.performance.now().floor();
+    }
+    throw PlatformException(
+      code: 'UNIMPLEMENTED',
+      message: '${call.method} not implemented on web',
+    );
+  }
+
+  static Future<dynamic> _handleBackground(MethodCall call) async {
+    return null;
+  }
+
+  static Future<dynamic> _handleLegacy(MethodCall call) async {
+    if (call.method == 'getPlatformVersion') {
+      return web.window.navigator.userAgent;
+    }
+    throw PlatformException(
+      code: 'UNIMPLEMENTED',
+      message: '${call.method} not implemented on web',
+    );
+  }
+
   @override
-  Future<String?> getPlatformVersion() async {
-    final version = web.window.navigator.userAgent;
-    return version;
+  Future<String?> getPlatformVersion() async =>
+      web.window.navigator.userAgent;
+
+  @override
+  Future<int?> getUptimeMs() async =>
+      web.window.performance.now().floor();
+
+  @override
+  void setClockTamperCallback(void Function() callback) {
+    // Browsers don't expose system clock change events.
   }
 }

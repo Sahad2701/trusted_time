@@ -45,7 +45,8 @@ final class IntegrityMonitor {
   /// Expected event map format: `{ 'type': String, 'driftMs': int? }`.
   void _onNativeEvent(dynamic raw) {
     if (_anchor == null) return;
-    final map = raw as Map<dynamic, dynamic>;
+    if (raw is! Map) return;
+    final map = raw;
     final type = map['type'] as String? ?? 'unknown';
     final driftMs = map['driftMs'] as int?;
 

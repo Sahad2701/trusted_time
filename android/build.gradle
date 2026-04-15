@@ -1,4 +1,4 @@
-group = "com.example.trusted_time"
+group = "com.trustedtime.trusted_time"
 version = "1.0-SNAPSHOT"
 
 buildscript {
@@ -25,7 +25,7 @@ apply plugin: "com.android.library"
 apply plugin: "kotlin-android"
 
 android {
-    namespace = "com.example.trusted_time"
+    namespace = "com.trustedtime.trusted_time"
 
     compileSdk = 36
 
@@ -47,11 +47,6 @@ android {
         minSdk = 24
     }
 
-    dependencies {
-        testImplementation("org.jetbrains.kotlin:kotlin-test")
-        testImplementation("org.mockito:mockito-core:5.0.0")
-    }
-
     testOptions {
         unitTests.all {
             useJUnitPlatform()
@@ -63,4 +58,10 @@ android {
             }
         }
     }
+}
+
+dependencies {
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
+    testImplementation("org.jetbrains.kotlin:kotlin-test")
+    testImplementation("org.mockito:mockito-core:5.0.0")
 }

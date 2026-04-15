@@ -63,6 +63,9 @@ final class TrustedTimeImpl {
   TrustAnchor? _anchor;
   bool _trusted = false;
   Timer? _refreshTimer;
+  Timer? _retryTimer;
+  Timer? _desktopBgTimer;
+  StreamSubscription<IntegrityEvent>? _integritySub;
   int? _offlineLastUtcMs;
   int? _offlineLastWallMs;
 
@@ -74,7 +77,7 @@ final class TrustedTimeImpl {
 
   /// Returns the current trusted UTC time.
   ///
-  /// Synchronous, <1µs — no I/O. Uses the cached wall-clock delta from the
+  /// Synchronous, <1µs — no I/O. Uses the monotonic stopwatch delta from the
   /// last successful sync to compute the current time.
   ///
   /// Throws [TrustedTimeNotReadyException] if no anchor is active.
@@ -119,12 +122,10 @@ final class TrustedTimeImpl {
       milliseconds: currentTime.millisecondsSinceEpoch - baseWallMs!,
     );
 
-    // Confidence decays linearly to 0 over 72 hours (4320 minutes).
     final confidence = (1.0 - wallElapsed.inMinutes.abs() / 4320.0).clamp(
       0.0,
       1.0,
     );
-    // Absolute error = elapsed time × estimated oscillator skew.
     final errorMs =
         (wallElapsed.inMilliseconds.abs() * _config.oscillatorDriftFactor)
             .round();
@@ -159,7 +160,8 @@ final class TrustedTimeImpl {
         defaultTargetPlatform == TargetPlatform.iOS) {
       await _invokeBackgroundSync(interval);
     } else {
-      Timer.periodic(interval, (_) => _performSync());
+      _desktopBgTimer?.cancel();
+      _desktopBgTimer = Timer.periodic(interval, (_) => _performSync());
     }
   }
 
@@ -167,6 +169,8 @@ final class TrustedTimeImpl {
 
   /// Cold-start bootstrap: loads persisted state and detects reboots.
   Future<void> _bootstrap() async {
+    _listenForIntegrityEvents();
+
     if (_config.persistState) {
       final lastKnown = await _store.loadLastKnown();
       if (lastKnown != null) {
@@ -182,6 +186,9 @@ final class TrustedTimeImpl {
         _applyAnchor(persisted);
         _trusted = true;
         _scheduleRefresh();
+        if (_config.backgroundSyncInterval != null) {
+          await enableBackgroundSync(_config.backgroundSyncInterval!);
+        }
         return;
       }
     }
@@ -192,8 +199,22 @@ final class TrustedTimeImpl {
     }
   }
 
+  /// Subscribes to integrity events and invalidates trust on violations.
+  void _listenForIntegrityEvents() {
+    _integritySub?.cancel();
+    _integritySub = _monitor.events.listen((event) {
+      if (event.reason == TamperReason.systemClockJumped ||
+          event.reason == TamperReason.deviceRebooted) {
+        _trusted = false;
+        debugPrint('[TrustedTime] Trust invalidated: ${event.reason}');
+        _performSync();
+      }
+    });
+  }
+
   /// Performs a full network sync and establishes a new anchor.
   Future<void> _performSync() async {
+    _retryTimer?.cancel();
     try {
       final anchor = await _syncEngine.sync();
       _applyAnchor(anchor);
@@ -202,9 +223,14 @@ final class TrustedTimeImpl {
       _offlineLastUtcMs = anchor.networkUtcMs;
       _offlineLastWallMs = anchor.wallMs;
       _scheduleRefresh();
+    } on TrustedTimeSyncException catch (e) {
+      debugPrint('[TrustedTime] Sync failed: $e');
+      _trusted = false;
+      _scheduleRetry();
     } catch (e) {
       debugPrint('[TrustedTime] Sync failed: $e');
       _trusted = false;
+      _scheduleRetry();
     }
   }
 
@@ -219,6 +245,16 @@ final class TrustedTimeImpl {
   void _scheduleRefresh() {
     _refreshTimer?.cancel();
     _refreshTimer = Timer(_config.refreshInterval, _performSync);
+  }
+
+  /// Schedules an exponential-backoff retry after a failed sync.
+  /// Retries at 30s, then defers to the normal refresh interval.
+  void _scheduleRetry() {
+    _retryTimer?.cancel();
+    final delay = _config.refreshInterval < const Duration(minutes: 1)
+        ? _config.refreshInterval
+        : const Duration(seconds: 30);
+    _retryTimer = Timer(delay, _performSync);
   }
 
   static const _bgChannel = MethodChannel('trusted_time/background');
@@ -237,6 +273,9 @@ final class TrustedTimeImpl {
   /// Releases all resources: timers, monitoring streams, and HTTP clients.
   void dispose() {
     _refreshTimer?.cancel();
+    _retryTimer?.cancel();
+    _desktopBgTimer?.cancel();
+    _integritySub?.cancel();
     _syncEngine.dispose();
     _monitor.dispose();
   }

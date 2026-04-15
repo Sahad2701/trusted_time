@@ -228,6 +228,8 @@ final class TrustedTimeConfig {
       identical(this, other) ||
       other is TrustedTimeConfig &&
           refreshInterval == other.refreshInterval &&
+          listEquals(ntpServers, other.ntpServers) &&
+          listEquals(httpsSources, other.httpsSources) &&
           maxLatency == other.maxLatency &&
           minimumQuorum == other.minimumQuorum &&
           persistState == other.persistState &&
@@ -237,6 +239,8 @@ final class TrustedTimeConfig {
   @override
   int get hashCode => Object.hash(
     refreshInterval,
+    Object.hashAll(ntpServers),
+    Object.hashAll(httpsSources),
     maxLatency,
     minimumQuorum,
     persistState,

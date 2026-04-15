@@ -24,5 +24,5 @@ A high-integrity time engine that provides reliable timestamps immune to system 
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386' }
   s.swift_version = '5.0'
 
-  s.resource_bundles = {'trusted_time_privacy' => ['trusted_time/Sources/trusted_time/Resources/PrivacyInfo.xcprivacy']}
+  s.resource_bundles = {'trusted_time_privacy' => ['Classes/Resources/PrivacyInfo.xcprivacy']}
 end
