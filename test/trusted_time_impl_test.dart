@@ -39,8 +39,6 @@ void main() {
       mock.dispose();
     });
 
-    // ── Finding 1.1 / 2.1: Integrity events invalidate trust ──
-
     test('isTrusted becomes false after clock jump event', () async {
       expect(TrustedTime.isTrusted, isTrue);
 
@@ -76,16 +74,12 @@ void main() {
       await sub.cancel();
     });
 
-    // ── Finding 7: Mock restoreTrust works ──
-
     test('restoreTrust re-enables isTrusted after reboot', () {
       mock.simulateReboot();
       expect(TrustedTime.isTrusted, isFalse);
       mock.restoreTrust();
       expect(TrustedTime.isTrusted, isTrue);
     });
-
-    // ── Finding 1.2: trustedLocalTimeIn delegates to now() for trust check ──
 
     test('trustedLocalTimeIn throws TrustedTimeNotReadyException when not trusted',
         () async {
@@ -99,17 +93,24 @@ void main() {
       );
     });
 
-    // ── nowEstimated confidence decay ──
-
-    test('nowEstimated returns null when trusted (no reboot)', () {
-      expect(TrustedTime.nowEstimated(), isNull);
+    test('nowEstimated returns estimate with full confidence when trusted', () {
+      final estimate = TrustedTime.nowEstimated();
+      expect(estimate, isNotNull);
+      expect(estimate!.confidence, 1.0);
+      expect(estimate.estimatedError, Duration.zero);
     });
 
-    test('nowEstimated returns estimate after reboot', () {
+    test('nowEstimated returns decaying estimate after reboot', () {
       mock.simulateReboot();
       final estimate = TrustedTime.nowEstimated();
       expect(estimate, isNotNull);
       expect(estimate!.confidence, 1.0);
+    });
+
+    test('nowEstimated returns null when untrusted without reboot data', () {
+      mock.simulateTampering(TamperReason.systemClockJumped);
+      final estimate = TrustedTime.nowEstimated();
+      expect(estimate, isNull);
     });
   });
 }

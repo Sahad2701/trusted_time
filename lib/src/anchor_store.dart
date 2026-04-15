@@ -42,9 +42,11 @@ final class AnchorStore {
     }
   }
 
-  /// Persists the anchor and its tracking timestamps atomically.
+  /// Persists the anchor and its tracking timestamps.
   ///
-  /// All three writes are issued concurrently for minimal I/O latency.
+  /// All three writes are issued concurrently for speed. Note: these are
+  /// not truly atomic — a crash mid-write could leave stale timestamps,
+  /// but [load] and [loadLastKnown] handle missing/corrupt data gracefully.
   Future<void> save(TrustAnchor anchor) async {
     final raw = jsonEncode(anchor.toJson());
     await Future.wait([

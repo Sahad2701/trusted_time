@@ -234,7 +234,8 @@ final class TrustedTimeConfig {
           minimumQuorum == other.minimumQuorum &&
           persistState == other.persistState &&
           oscillatorDriftFactor == other.oscillatorDriftFactor &&
-          backgroundSyncInterval == other.backgroundSyncInterval;
+          backgroundSyncInterval == other.backgroundSyncInterval &&
+          listEquals(additionalSources, other.additionalSources);
 
   @override
   int get hashCode => Object.hash(
@@ -246,5 +247,6 @@ final class TrustedTimeConfig {
     persistState,
     oscillatorDriftFactor,
     backgroundSyncInterval,
+    Object.hashAll(additionalSources),
   );
 }

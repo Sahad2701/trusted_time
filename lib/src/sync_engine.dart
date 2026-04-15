@@ -96,7 +96,7 @@ final class SyncEngine {
         roundTripMs: sw.elapsedMilliseconds,
       );
     } catch (e) {
-      debugPrint('[TrustedTime] Source ${source.id} failed: $e');
+      if (kDebugMode) debugPrint('[TrustedTime] Source ${source.id} failed: $e');
       return null;
     }
   }

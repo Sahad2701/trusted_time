@@ -4,15 +4,13 @@ import 'package:trusted_time/src/models.dart';
 import 'package:trusted_time/src/marzullo.dart';
 
 void main() {
-  // ── Finding 8 / 12: SyncEngine throws TrustedTimeSyncException ──
-
   group('TrustedTimeSyncException', () {
-    test('TrustedTimeSyncException toString includes message', () {
+    test('toString includes message', () {
       const e = TrustedTimeSyncException('test message');
       expect(e.toString(), contains('test message'));
     });
 
-    test('TrustedTimeSyncException is catchable as Exception', () {
+    test('is catchable as Exception', () {
       expect(
         () => throw const TrustedTimeSyncException('quorum failed'),
         throwsA(isA<TrustedTimeSyncException>()),
@@ -24,8 +22,6 @@ void main() {
       expect(e.toString(), contains('initialize'));
     });
   });
-
-  // ── Finding 8: TrustedTimeConfig equality includes server lists ──
 
   group('TrustedTimeConfig equality', () {
     test('configs with same servers are equal', () {
@@ -52,17 +48,27 @@ void main() {
     });
 
     test('configs with different refreshInterval are NOT equal', () {
-      const a = TrustedTimeConfig(
-        refreshInterval: Duration(hours: 6),
-      );
-      const b = TrustedTimeConfig(
-        refreshInterval: Duration(hours: 12),
-      );
+      const a = TrustedTimeConfig(refreshInterval: Duration(hours: 6));
+      const b = TrustedTimeConfig(refreshInterval: Duration(hours: 12));
       expect(a, isNot(equals(b)));
     });
-  });
 
-  // ── Finding 5: Marzullo tie-breaking ──
+    test('configs with different additionalSources are NOT equal', () {
+      final sourceA = _FakeSource('a');
+      final sourceB = _FakeSource('b');
+      final a = TrustedTimeConfig(additionalSources: [sourceA]);
+      final b = TrustedTimeConfig(additionalSources: [sourceB]);
+      expect(a, isNot(equals(b)));
+    });
+
+    test('configs with same additionalSources instance are equal', () {
+      final source = _FakeSource('x');
+      final a = TrustedTimeConfig(additionalSources: [source]);
+      final b = TrustedTimeConfig(additionalSources: [source]);
+      expect(a, equals(b));
+      expect(a.hashCode, equals(b.hashCode));
+    });
+  });
 
   group('MarzulloEngine tie-breaking', () {
     test('touching intervals at exact same point resolve correctly', () {
@@ -70,9 +76,6 @@ void main() {
       final t = DateTime.utc(2024, 1, 1, 12);
       final tMs = t.millisecondsSinceEpoch;
 
-      // Source A: [tMs - 10, tMs + 10] (uncertainty = 10)
-      // Source B: [tMs + 10, tMs + 30] (center tMs+20, uncertainty = 10)
-      // They touch at exactly tMs + 10
       final result = engine.resolve([
         SourceSample(sourceId: 'a', utc: t, roundTripMs: 20),
         SourceSample(
@@ -104,8 +107,6 @@ void main() {
     });
   });
 
-  // ── TrustAnchor serialization round-trip ──
-
   group('TrustAnchor', () {
     test('toJson / fromJson round-trip preserves all fields', () {
       final anchor = TrustAnchor(
@@ -133,5 +134,25 @@ void main() {
       expect(a.hashCode, equals(b.hashCode));
       expect(a, isNot(equals(c)));
     });
+
+    test('copyWith returns new instance with updated uncertainty', () {
+      final anchor = TrustAnchor(
+        networkUtcMs: 100, uptimeMs: 200, wallMs: 300, uncertaintyMs: 10,
+      );
+      final copy = anchor.copyWith(uncertaintyMs: 50);
+      expect(copy.uncertaintyMs, 50);
+      expect(copy.networkUtcMs, anchor.networkUtcMs);
+    });
   });
+}
+
+class _FakeSource implements TrustedTimeSource {
+  _FakeSource(this._id);
+  final String _id;
+
+  @override
+  String get id => _id;
+
+  @override
+  Future<DateTime> queryUtc() async => DateTime.now().toUtc();
 }

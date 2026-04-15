@@ -36,9 +36,12 @@ final class TrustedTimeEstimate {
   /// indicate less certainty about the estimated time's accuracy.
   final Duration estimatedError;
 
-  /// Returns `true` if the estimate is stable enough for typical UX display.
+  /// Returns `true` if the estimate is suitable for display in typical UX.
   ///
-  /// The threshold is [confidence] ≥ 0.5 (approximately ≤ 36 hours offline).
+  /// Threshold: [confidence] ≥ 0.5 (approximately ≤ 36 hours offline).
+  /// Applications with stricter accuracy requirements should compare
+  /// [confidence] and [estimatedError] against their own thresholds
+  /// rather than relying on this convenience getter.
   bool get isReasonable => confidence >= 0.5;
 
   @override

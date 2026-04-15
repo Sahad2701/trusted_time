@@ -24,7 +24,11 @@ enum TamperReason {
   /// the current trust anchor.
   deviceRebooted,
 
-  /// A resync was manually triggered or happened unexpectedly.
+  /// A resync was manually triggered via [TrustedTime.forceResync].
+  ///
+  /// The engine does not emit this reason internally — it is reserved
+  /// for consumer-side auditing. Applications may emit it via
+  /// [TrustedTimeMock.simulateTampering] to test forced-resync paths.
   forcedNtpSync,
 
   /// The root cause could not be determined from available platform

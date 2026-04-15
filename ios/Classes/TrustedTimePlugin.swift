@@ -2,25 +2,34 @@ import Flutter
 import UIKit
 import BackgroundTasks
 
-/** Entry point and event coordinator for the TrustedTime iOS plugin. */
+/// Entry point and event coordinator for the TrustedTime iOS plugin.
+///
+/// **Host app requirement**: To enable background sync, add the task identifier
+/// to the host app's `Info.plist`:
+/// ```xml
+/// <key>BGTaskSchedulerPermittedIdentifiers</key>
+/// <array>
+///   <string>com.trustedtime.backgroundsync</string>
+/// </array>
+/// ```
+/// Without this entry, `BGTaskScheduler.shared.register(...)` will fail
+/// silently and background syncs will not fire.
 public class TrustedTimePlugin: NSObject, FlutterPlugin {
 
     private var integrityEventSink: FlutterEventSink?
     private var clockObservers: [NSObjectProtocol] = []
     private let bgTaskId = "com.trustedtime.backgroundsync"
+    private var bgRegistered = false
 
     public static func register(with registrar: FlutterPluginRegistrar) {
         let instance = TrustedTimePlugin()
         
-        // Channel for hardware process info uptime.
         FlutterMethodChannel(name: "trusted_time/monotonic", binaryMessenger: registrar.messenger())
             .setMethodCallHandler(instance.handle)
             
-        // Channel for Apple BackgroundTasks registration.
         FlutterMethodChannel(name: "trusted_time/background", binaryMessenger: registrar.messenger())
             .setMethodCallHandler(instance.handle)
             
-        // Stream for Darwin-level temporal notifications.
         FlutterEventChannel(name: "trusted_time/integrity", binaryMessenger: registrar.messenger())
             .setStreamHandler(instance)
     }
@@ -28,7 +37,6 @@ public class TrustedTimePlugin: NSObject, FlutterPlugin {
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "getUptimeMs":
-            // Returns kernel-level monotonic uptime in milliseconds.
             result(Int64(ProcessInfo.processInfo.systemUptime * 1000))
         case "enableBackgroundSync":
             let hours = (call.arguments as? [String: Any])?["intervalHours"] as? Int ?? 24
@@ -39,16 +47,23 @@ public class TrustedTimePlugin: NSObject, FlutterPlugin {
         }
     }
 
-    /** Submits the BGAppRefreshTask to the iOS scheduling system. */
+    /// Registers the BGAppRefreshTask once, then schedules the next execution.
+    ///
+    /// Apple requires `register(forTaskWithIdentifier:)` to be called only
+    /// during app launch. Subsequent calls replace the handler, which is
+    /// harmless but wasteful. The `bgRegistered` flag prevents redundant
+    /// registrations.
     private func registerBgSync(intervalHours: Int) {
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: bgTaskId, using: nil) { [weak self] task in
-            self?.scheduleNextBgSync(hours: intervalHours)
-            task.setTaskCompleted(success: true)
+        if !bgRegistered {
+            BGTaskScheduler.shared.register(forTaskWithIdentifier: bgTaskId, using: nil) { [weak self] task in
+                self?.scheduleNextBgSync(hours: intervalHours)
+                task.setTaskCompleted(success: true)
+            }
+            bgRegistered = true
         }
         scheduleNextBgSync(hours: intervalHours)
     }
 
-    /** Calculates the earliest start date for the next background refresh. */
     private func scheduleNextBgSync(hours: Int) {
         let req = BGAppRefreshTaskRequest(identifier: bgTaskId)
         req.earliestBeginDate = Date(timeIntervalSinceNow: Double(hours) * 3600)
@@ -62,7 +77,6 @@ extension TrustedTimePlugin: FlutterStreamHandler {
         integrityEventSink = events
         let nc = NotificationCenter.default
         
-        // Listen for standard Darwin temporal change notifications.
         clockObservers = [
             nc.addObserver(forName: .NSSystemClockDidChange, object: nil, queue: .main) { [weak self] _ in
                 self?.emit(["type": "clockJumped"])
@@ -81,7 +95,6 @@ extension TrustedTimePlugin: FlutterStreamHandler {
         return nil
     }
 
-    /** Forwards the native notification down into the Flutter isolate. */
     private func emit(_ data: [String: Any]) {
         DispatchQueue.main.async { [weak self] in self?.integrityEventSink?(data) }
     }
