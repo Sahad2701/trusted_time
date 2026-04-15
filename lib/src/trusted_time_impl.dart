@@ -123,7 +123,7 @@ final class TrustedTimeImpl {
     if (defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS) {
       // #9: warn if sub-hour interval is silently clamped
-      if (interval.inHours < 1) {
+      if (kDebugMode && interval.inHours < 1) {
         debugPrint(
           '[TrustedTime] Background sync interval ${interval.inMinutes}m '
           'is below the 1-hour minimum; clamped to 1 hour.',
@@ -201,7 +201,7 @@ final class TrustedTimeImpl {
       _offlineLastWallMs = anchor.wallMs;
       _scheduleRefresh();
     } catch (e) {
-      debugPrint('[TrustedTime] Sync failed: $e');
+      if (kDebugMode) debugPrint('[TrustedTime] Sync failed: $e');
       _trusted = false;
       _scheduleRetry();
     } finally {
@@ -237,7 +237,7 @@ final class TrustedTimeImpl {
         'intervalHours': interval.inHours.clamp(1, 168),
       });
     } catch (e) {
-      debugPrint('[TrustedTime] Background sync registration failed: $e');
+      if (kDebugMode) debugPrint('[TrustedTime] Background sync registration failed: $e');
     }
   }
 
