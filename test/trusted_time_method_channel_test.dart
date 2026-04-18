@@ -1,26 +1,38 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:trusted_time/src/platform/trusted_time_method_channel.dart';
+import 'package:trusted_time/src/monotonic_clock.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  final platform = MethodChannelTrustedTime();
-  const channel = MethodChannel('trusted_time');
+  const channel = MethodChannel('trusted_time/monotonic');
 
-  setUp(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (methodCall) async {
-          return '42';
-        });
-  });
+  group('PlatformMonotonicClock', () {
+    setUp(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (methodCall) async {
+        if (methodCall.method == 'getUptimeMs') return 42000;
+        return null;
+      });
+    });
 
-  tearDown(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, null);
-  });
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
 
-  test('getPlatformVersion', () async {
-    expect(await platform.getPlatformVersion(), '42');
+    test('uptimeMs returns value from platform channel', () async {
+      final clock = PlatformMonotonicClock();
+      final result = await clock.uptimeMs();
+      expect(result, 42000);
+    });
+
+    test('uptimeMs throws when platform returns null', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (methodCall) async => null);
+
+      final clock = PlatformMonotonicClock();
+      expect(() => clock.uptimeMs(), throwsA(isA<StateError>()));
+    });
   });
 }

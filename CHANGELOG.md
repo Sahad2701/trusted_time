@@ -1,3 +1,69 @@
+## 1.2.1
+
+
+**Critical enhancements**
+- iOS/macOS: Enhanced channel initialization avoiding naming mismatch
+- Android: Optimized `BroadcastReceiver` lifecycle to efficiently detach
+- Android: Upgraded `BackgroundSyncWorker` to perform HTTPS connectivity check
+- `SyncClock.elapsedSinceAnchorMs()` upgraded to use Dart `Stopwatch` (monotonic) instead of wall-clock delta
+- Linux: Implemented proper `get_platform_version()` parsing to resolve implicit logic
+- Example integration test upgraded to effectively await `TrustedTime.initialize()`
+
+**High-priority enhancements**
+- iOS BGTask handler upgraded to perform HTTPS HEAD check (parity with Android worker)
+- iOS BGTask closure stabilized to capture dynamic interval value
+- Windows native test enhanced building with explicit constructor
+- Example widget test stabilized to match actual app UI
+
+**Engine improvements**
+- Serialized sync via `Completer` introduced to prevent concurrent `_performSync()` calls
+- Integrity events (`systemClockJumped`, `deviceRebooted`) configured to invalidate trust and optimally trigger resync
+- Automatic retry engine introduced with configurable delay on sync failure
+- Background sync optimally enabled on both warm-restore and cold-start paths
+- `dispose()` architecture enhanced to clear `SyncClock` static state, preventing cross-test leakage
+- `initialize()` short-circuits engine init immediately when test mock is active
+- `timezoneChanged` streamlined as an intentional non-resync event (UTC is timezone-independent)
+- All `debugPrint` calls optimized and guarded by `kDebugMode` for release builds
+
+**Algorithm & sources optimizations**
+- Marzullo tie-breaking upgraded: lower endpoints prioritize over upper at equal times
+- `bestEnd` intelligently resets when finding new maximum overlap depth
+- `HttpsSource`: Implemented robust HEAD→GET fallback architecture on 405 or missing Date header
+- Comprehensive HTTP date parser expanded (RFC 7231 + RFC 850 formats)
+- NTP source optimized via conditional imports (`dart:io` guard) for deep web compatibility
+- `TrustedTimeConfig.operator==` and `hashCode` stabilized to comprehensively include `additionalSources`
+
+**Platform native architecture**
+- Android: Migrated `RECEIVER_NOT_EXPORTED` flags properly for API 33+ implicit-intent receivers
+- Android: Deprecated and removed unused `SharedPreferences` writes from background worker
+- Android: Standardized `build.gradle` structure alongside `AndroidManifest.xml`
+- iOS: `BGTaskScheduler.register` initialization restricted optimally to run once via `bgRegistered` flag
+- iOS: `Info.plist` properly documents `BGTaskSchedulerPermittedIdentifiers` requirement tracking
+- Windows: Deprecated legacy `"trusted_time"` method channel registration safely
+- Linux: Deprecated legacy `"trusted_time"` method channel registration safely
+- Web: Registered `MethodChannel` handlers gracefully for monotonic and background channels
+
+**Cleanup & Standardization**
+- Deprecated 7 dead platform abstraction files
+- Streamlined bundle, removing `plugin_platform_interface` dependency
+- Reverted misleading `Package.swift` SPM target for CocoaPods plugin standard
+- Stripped committed `test_results.txt` and `logcat_full.txt` logs fully prioritizing Git cleanliness
+- Renamed `sync_engine_test.dart` → `models_test.dart` to logically match content
+- Broadened SDK constraints scaling accessibility: `sdk: >=3.4.0`, `flutter: >=3.19.0`
+
+**Validation Pipeline Enhancement**
+- Scaled 54 total tests across 9 test files (up from 8 tests originally)
+- Instated `TrustedTimeEstimate` tests (isReasonable, toString)
+- Instated `IntegrityMonitor` tests (reboot detection, multiple attach, double dispose)
+- Instated `TrustedTimeConfig` equality tests covering `additionalSources`
+- Instated `SyncClock.reset()` verification structure
+- Adjusted timing bounds dynamically in SyncClock tests for CI reliability scaling
+
+**CI & Documentation**
+- CI workflow modernized to deeply analyze example app alongside plugin
+- `SECURITY.md` validation tables strictly updated
+- `CHANGELOG.md` properly reflects comprehensive audit validations
+
 ## 1.2.0
 
 Major stability and accuracy update with desktop support.

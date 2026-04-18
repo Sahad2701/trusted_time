@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'exceptions.dart';
 import 'models.dart';
 import 'marzullo.dart';
 import 'monotonic_clock.dart';
@@ -36,16 +37,19 @@ final class SyncEngine {
   /// Queries all configured time sources in parallel, filters by maximum
   /// latency, and uses Marzullo's algorithm to find the consensus interval.
   ///
-  /// Throws [StateError] if no sources respond or if quorum cannot be reached.
+  /// Throws [TrustedTimeSyncException] if no sources respond or if quorum
+  /// cannot be reached.
   Future<TrustAnchor> sync() async {
     final samples = await _queryConcurrently();
     if (samples.isEmpty) {
-      throw StateError('Every configured time source failed to respond.');
+      throw const TrustedTimeSyncException(
+        'Every configured time source failed to respond.',
+      );
     }
 
     final result = _engine.resolve(samples);
     if (result == null) {
-      throw StateError(
+      throw TrustedTimeSyncException(
         'Quorum not reached: got ${samples.length} samples, '
         'need ${_config.minimumQuorum} for intersection.',
       );
@@ -53,7 +57,6 @@ final class SyncEngine {
 
     final uptimeMs = await _clock.uptimeMs();
     final wallMs = DateTime.now().millisecondsSinceEpoch;
-    SyncClock.update(uptimeMs, wallMs);
 
     return TrustAnchor(
       networkUtcMs: result.utc.millisecondsSinceEpoch,
@@ -93,7 +96,7 @@ final class SyncEngine {
         roundTripMs: sw.elapsedMilliseconds,
       );
     } catch (e) {
-      debugPrint('[TrustedTime] Source ${source.id} failed: $e');
+      if (kDebugMode) debugPrint('[TrustedTime] Source ${source.id} failed: $e');
       return null;
     }
   }

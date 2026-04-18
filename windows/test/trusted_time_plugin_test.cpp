@@ -23,8 +23,10 @@ using flutter::MethodResultFunctions;
 }  // namespace
 
 TEST(TrustedTimePlugin, GetPlatformVersion) {
-  TrustedTimePlugin plugin;
-  // Save the reply value from the success callback.
+  // Pass nullptr — HandleMethodCall does not dereference registrar_ for
+  // getPlatformVersion or getUptimeMs, only for HandleOnListen (window handle).
+  TrustedTimePlugin plugin(nullptr);
+
   std::string result_string;
   plugin.HandleMethodCall(
       MethodCall("getPlatformVersion", std::make_unique<EncodableValue>()),
@@ -34,9 +36,22 @@ TEST(TrustedTimePlugin, GetPlatformVersion) {
           },
           nullptr, nullptr));
 
-  // Since the exact string varies by host, just ensure that it's a string
-  // with the expected format.
   EXPECT_TRUE(result_string.rfind("Windows ", 0) == 0);
+}
+
+TEST(TrustedTimePlugin, GetUptimeMs) {
+  TrustedTimePlugin plugin(nullptr);
+
+  int64_t uptime_ms = 0;
+  plugin.HandleMethodCall(
+      MethodCall("getUptimeMs", std::make_unique<EncodableValue>()),
+      std::make_unique<MethodResultFunctions<>>(
+          [&uptime_ms](const EncodableValue* result) {
+            uptime_ms = std::get<int64_t>(*result);
+          },
+          nullptr, nullptr));
+
+  EXPECT_GT(uptime_ms, 0);
 }
 
 }  // namespace test

@@ -1,26 +1,35 @@
-// In order to *not* need this ignore, consider extracting the "web" version
-// of your plugin as a separate package, instead of inlining it in the same
-// package as the core of your plugin.
-// ignore: avoid_web_libraries_in_flutter
-
+import 'package:flutter/services.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 import 'package:web/web.dart' as web;
 
-import 'trusted_time_platform_interface.dart';
-
-/// A web implementation of the TrustedTimePlatform of the TrustedTime plugin.
-class TrustedTimeWeb extends TrustedTimePlatform {
-  /// Constructs a TrustedTimeWeb
-  TrustedTimeWeb();
-
+/// Web implementation of the TrustedTime plugin.
+///
+/// Registers [MethodChannel] handlers for the channels the Dart engine
+/// expects. Uses `performance.now()` as the monotonic clock source.
+///
+/// **Important**: `performance.now()` is session-relative — it resets to
+/// zero on every page load. This means trust anchors cannot survive page
+/// refreshes; the engine will perform a fresh network sync on each load.
+class TrustedTimeWebPlugin {
   static void registerWith(Registrar registrar) {
-    TrustedTimePlatform.instance = TrustedTimeWeb();
+    const MethodChannel('trusted_time/monotonic')
+        .setMethodCallHandler(_handleMonotonic);
+
+    const MethodChannel('trusted_time/background')
+        .setMethodCallHandler(_handleBackground);
   }
 
-  /// Returns a [String] containing the version of the platform.
-  @override
-  Future<String?> getPlatformVersion() async {
-    final version = web.window.navigator.userAgent;
-    return version;
+  static Future<dynamic> _handleMonotonic(MethodCall call) async {
+    if (call.method == 'getUptimeMs') {
+      return web.window.performance.now().floor();
+    }
+    throw PlatformException(
+      code: 'UNIMPLEMENTED',
+      message: '${call.method} not implemented on web',
+    );
+  }
+
+  static Future<dynamic> _handleBackground(MethodCall call) async {
+    return null;
   }
 }

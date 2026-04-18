@@ -40,4 +40,8 @@ migrate_working_dir/
 # Internal Documentation
 docs/
 
+# Test output artifacts
+test_results.txt
+*.test_results
+
 

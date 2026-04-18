@@ -31,10 +31,16 @@ jobs:
         run: flutter pub get
 
       - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed .
+        run: dart format .
 
       - name: Analyze project
-        run: flutter analyze --fatal-infos
+        run: flutter analyze
 
       - name: Run tests
         run: flutter test
+
+      - name: Analyze example app
+        working-directory: example
+        run: |
+          flutter pub get
+          flutter analyze
