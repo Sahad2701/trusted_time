@@ -1,27 +1,45 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:trusted_time_example/main.dart';
+import 'package:trusted_time/trusted_time.dart';
 
 void main() {
-  testWidgets('Verify Platform version', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  TestWidgetsFlutterBinding.ensureInitialized();
 
-    // Verify that platform version is retrieved.
-    expect(
-      find.byWidgetPredicate(
-        (Widget widget) =>
-            widget is Text && widget.data!.startsWith('Running on:'),
-      ),
-      findsOneWidget,
-    );
+  const storageChannel = MethodChannel(
+    'plugins.it_nomads.com/flutter_secure_storage',
+  );
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(storageChannel, (call) async => null);
+
+  const monotonicChannel = MethodChannel('trusted_time/monotonic');
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(monotonicChannel, (call) async {
+    if (call.method == 'getUptimeMs') return 1000;
+    return null;
+  });
+
+  const backgroundChannel = MethodChannel('trusted_time/background');
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(backgroundChannel, (call) async => null);
+
+  const integrityChannel = MethodChannel('trusted_time/integrity');
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(integrityChannel, (call) async => null);
+
+  testWidgets('Example app renders TrustedTime V2 Features title',
+      (WidgetTester tester) async {
+    final mock = TrustedTimeMock(initial: DateTime.utc(2024, 1, 1, 12));
+    TrustedTime.overrideForTesting(mock);
+
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('TrustedTime V2 Features'), findsOneWidget);
+    expect(find.text('Section 1 — Live Clock'), findsOneWidget);
+
+    TrustedTime.resetOverride();
+    mock.dispose();
   });
 }

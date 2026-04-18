@@ -79,6 +79,12 @@ abstract final class TrustedTime {
       tz.initializeTimeZones();
       _timezoneInitialized = true;
     }
+
+    // Short-circuit when a test mock is active — avoids network I/O,
+    // secure storage access, and platform channel calls during tests.
+    // Timezone initialization still runs above so trustedLocalTimeIn works.
+    if (_override != null) return;
+
     await TrustedTimeImpl.init(config);
   }
 

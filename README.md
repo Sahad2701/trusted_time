@@ -223,7 +223,7 @@ await TrustedTime.initialize(
 | Memory overhead     | ~50 KB         |
 | Background CPU      | Zero when idle |
 
-TrustedTime performs **no background polling** and uses **zero timers** once synced.
+After the initial sync, TrustedTime uses a single lightweight timer to schedule periodic anchor refreshes. No polling or busy-waiting is performed between syncs.
 
 ---
 

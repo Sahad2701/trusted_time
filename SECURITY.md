@@ -7,7 +7,10 @@ The following versions of **TrustedTime** currently receive security updates:
 
 | Version | Supported |
 | ------- | --------- |
-| 1.0.x   | ✅ Yes     |
+| 1.2.x   | ✅ Yes     |
+| 1.1.x   | ✅ Yes     |
+| 1.0.x   | ⚠️ Critical fixes only |
+| < 1.0   | ❌ No      |
 
 ---
 
@@ -16,7 +19,7 @@ The following versions of **TrustedTime** currently receive security updates:
 If you discover a security issue that could affect the integrity, reliability, or trust guarantees of TrustedTime:
 
 1. **Do not open a public issue.**
-2. Open a **private security advisory** using GitHub’s built-in security reporting feature.
+2. Open a **private security advisory** using GitHub's built-in security reporting feature.
 3. Include:
 
    * A clear description of the issue
@@ -43,4 +46,3 @@ The following are not considered security vulnerabilities:
 * Rooted/jailbroken device behavior outside OS guarantees
 
 ---
-

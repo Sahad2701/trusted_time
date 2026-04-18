@@ -16,7 +16,7 @@ A high-integrity time engine that provides reliable timestamps immune to system 
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'TrustedTime Maintainers' => 'https://github.com/Sahad2701/trusted_time' }
   s.source           = { :path => '.' }
-  s.source_files = 'trusted_time/Sources/trusted_time/**/*'
+  s.source_files = 'Classes/**/*'
   s.dependency 'Flutter'
   s.platform = :ios, '13.0'
 
@@ -24,5 +24,5 @@ A high-integrity time engine that provides reliable timestamps immune to system 
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386' }
   s.swift_version = '5.0'
 
-  s.resource_bundles = {'trusted_time_privacy' => ['trusted_time/Sources/trusted_time/Resources/PrivacyInfo.xcprivacy']}
+  s.resource_bundles = {'trusted_time_privacy' => ['Classes/Resources/PrivacyInfo.xcprivacy']}
 end

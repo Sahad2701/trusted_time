@@ -266,6 +266,15 @@ static void method_call_cb(FlMethodChannel *channel, FlMethodCall *method_call,
   fl_method_call_respond(method_call, response, nullptr);
 }
 
+// Exposed for unit testing (see trusted_time_plugin_private.h).
+FlMethodResponse *get_platform_version() {
+  struct utsname uname_data = {};
+  uname(&uname_data);
+  g_autofree gchar *version = g_strdup_printf("Linux %s", uname_data.version);
+  g_autoptr(FlValue) result = fl_value_new_string(version);
+  return FL_METHOD_RESPONSE(fl_method_success_response_new(result));
+}
+
 // Plugin registration
 
 void trusted_time_plugin_register_with_registrar(FlPluginRegistrar *registrar) {
@@ -273,13 +282,6 @@ void trusted_time_plugin_register_with_registrar(FlPluginRegistrar *registrar) {
       g_object_new(trusted_time_plugin_get_type(), nullptr));
 
   g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
-
-  // Primary method channel.
-  g_autoptr(FlMethodChannel) method_channel =
-      fl_method_channel_new(fl_plugin_registrar_get_messenger(registrar),
-                            "trusted_time", FL_METHOD_CODEC(codec));
-  fl_method_channel_set_method_call_handler(
-      method_channel, method_call_cb, g_object_ref(plugin), g_object_unref);
 
   // Monotonic clock channel.
   g_autoptr(FlMethodChannel) monotonic_channel =

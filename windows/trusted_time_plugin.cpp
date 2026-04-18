@@ -29,16 +29,6 @@ void TrustedTimePlugin::RegisterWithRegistrar(
     flutter::PluginRegistrarWindows *registrar) {
   auto plugin = std::make_unique<TrustedTimePlugin>(registrar);
 
-  // Primary method channel.
-  auto channel =
-      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
-          registrar->messenger(), "trusted_time",
-          &flutter::StandardMethodCodec::GetInstance());
-  channel->SetMethodCallHandler(
-      [plugin_pointer = plugin.get()](const auto &call, auto result) {
-        plugin_pointer->HandleMethodCall(call, std::move(result));
-      });
-
   // Monotonic clock channel.
   auto monotonic_channel =
       std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
