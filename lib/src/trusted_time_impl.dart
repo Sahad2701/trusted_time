@@ -201,7 +201,9 @@ final class TrustedTimeImpl {
       _offlineLastWallMs = anchor.wallMs;
       _scheduleRefresh();
     } catch (e) {
-      if (kDebugMode) debugPrint('[TrustedTime] Sync failed: $e');
+      if (kDebugMode) {
+        debugPrint('[TrustedTime] Sync failed: $e');
+      }
       _trusted = false;
       _scheduleRetry();
     } finally {
@@ -237,7 +239,9 @@ final class TrustedTimeImpl {
         'intervalHours': interval.inHours.clamp(1, 168),
       });
     } catch (e) {
-      if (kDebugMode) debugPrint('[TrustedTime] Background sync registration failed: $e');
+      if (kDebugMode) {
+        debugPrint('[TrustedTime] Background sync registration failed: $e');
+      }
     }
   }
 
