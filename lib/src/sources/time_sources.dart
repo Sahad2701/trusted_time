@@ -15,7 +15,7 @@ final class HttpsSource implements TimeSource {
   final http.Client _client;
 
   @override
-  String get id => 'https:$_url';
+  String get id => '${TimeSource.prefixHttps}$_url';
 
   @override
   String get groupId {

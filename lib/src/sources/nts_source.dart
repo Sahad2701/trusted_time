@@ -73,7 +73,7 @@ final class NtsSource implements TimeSource {
   static const int _ntpUnixDelta = 2208988800; // seconds between 1900 and 1970
 
   @override
-  String get id => 'nts:$_host';
+  String get id => '${TimeSource.prefixNts}$_host';
 
   @override
   String get groupId => _host;
@@ -417,14 +417,14 @@ final class NtsSource implements TimeSource {
   }
 
   Uint8List _generateUniqueId() {
-    // 32-byte unique identifier using microsecond timestamp + hashCode entropy
-    final now = DateTime.now().microsecondsSinceEpoch;
-    final buf = ByteData(32);
-    buf.setInt64(0, now, Endian.big);
-    buf.setInt64(8, now ^ identityHashCode(this), Endian.big);
-    buf.setInt64(16, now * 1103515245, Endian.big);
-    buf.setInt64(24, now ^ 0xDEADBEEF, Endian.big);
-    return buf.buffer.asUint8List();
+    // 32-byte unique identifier using cryptographically secure entropy.
+    // RFC 8915 §5.3: The identifier must be unique but does not need to be secret.
+    final random = Random.secure();
+    final bytes = Uint8List(32);
+    for (var i = 0; i < 32; i++) {
+      bytes[i] = random.nextInt(256);
+    }
+    return bytes;
   }
 }
 
