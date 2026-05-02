@@ -1,22 +1,15 @@
 import 'package:http/http.dart' as http;
-import '../models.dart';
+import '../domain/time_sample.dart';
+import '../domain/time_source.dart';
+import '../domain/time_interval.dart';
 
 export 'ntp_source_stub.dart' if (dart.library.io) 'ntp_source_io.dart';
+export 'nts_source_stub.dart' if (dart.library.io) 'nts_source.dart';
 
 /// Fetches UTC time from an HTTPS endpoint's `Date` response header.
-///
-/// Tries HEAD first (lightweight), falls back to GET if HEAD returns 405
-/// or omits the `Date` header. The server's `Date` header is corrected for
-/// one-way network latency using the measured round-trip time.
-///
-/// Pass a pre-configured [http.Client] for enterprise certificate pinning:
-/// ```dart
-/// final client = IOClient(HttpClient(context: mySecurityContext));
-/// final source = HttpsSource('https://internal.example.com', client: client);
-/// ```
-final class HttpsSource implements TrustedTimeSource {
+final class HttpsSource implements TimeSource {
   HttpsSource(this._url, {http.Client? client})
-    : _client = client ?? http.Client();
+      : _client = client ?? http.Client();
 
   final String _url;
   final http.Client _client;
@@ -25,12 +18,19 @@ final class HttpsSource implements TrustedTimeSource {
   String get id => 'https:$_url';
 
   @override
-  Future<DateTime> queryUtc() async {
+  String get groupId {
+    try {
+      return Uri.parse(_url).host;
+    } catch (_) {
+      return _url;
+    }
+  }
+
+  @override
+  Future<TimeSample> getTime() async {
     final uri = Uri.parse(_url);
     final sw = Stopwatch()..start();
 
-    // Try HEAD first (lightweight), fall back to GET if the server rejects
-    // HEAD or omits the Date header.
     var response = await _client.head(uri).timeout(const Duration(seconds: 3));
     if (response.statusCode == 405 || response.headers['date'] == null) {
       sw.reset();
@@ -45,29 +45,54 @@ final class HttpsSource implements TrustedTimeSource {
     }
 
     final serverTime = _HttpDate.parse(dateHeader);
-    return serverTime
+    final correctedTime = serverTime
         .add(Duration(milliseconds: sw.elapsedMilliseconds ~/ 2))
         .toUtc();
+
+    final startMs = correctedTime.millisecondsSinceEpoch - (sw.elapsedMilliseconds ~/ 2);
+    final endMs = correctedTime.millisecondsSinceEpoch + (sw.elapsedMilliseconds ~/ 2);
+
+    return TimeSample(
+      interval: TimeInterval(startMs: startMs, endMs: endMs),
+      sourceId: id,
+      groupId: groupId,
+    );
   }
 
   void dispose() => _client.close();
 }
 
-/// Internal parser for RFC 7231 / RFC 1123 HTTP date headers.
-///
-/// Handles the standard format: `Thu, 01 Jan 2024 12:00:00 GMT`.
-/// Also handles RFC 850 format: `Thursday, 01-Jan-24 12:00:00 GMT`.
-/// Throws [FormatException] on unrecognized formats — the SyncEngine's
-/// try/catch in [_querySafe] handles this gracefully.
 final class _HttpDate {
   static const _months = {
-    'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-    'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12,
+    'Jan': 1,
+    'Feb': 2,
+    'Mar': 3,
+    'Apr': 4,
+    'May': 5,
+    'Jun': 6,
+    'Jul': 7,
+    'Aug': 8,
+    'Sep': 9,
+    'Oct': 10,
+    'Nov': 11,
+    'Dec': 12,
   };
 
   static const _weekdays = {
-    'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun',
-    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
   };
 
   static DateTime parse(String header) {

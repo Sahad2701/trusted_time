@@ -8,6 +8,9 @@ import 'integrity_event.dart';
 import 'integrity_monitor.dart';
 import 'monotonic_clock.dart';
 import 'sync_engine.dart';
+import 'sources/nts_source.dart';
+import 'infra/sync_observer.dart';
+import 'infra/consensus_cache.dart';
 import 'trusted_time_estimate.dart';
 import 'trusted_time_mock.dart';
 
@@ -17,10 +20,16 @@ final class TrustedTimeImpl {
     required TrustedTimeConfig config,
     required AnchorStore store,
     required MonotonicClock clock,
-  }) : _config = config,
-       _store = store,
-       _syncEngine = SyncEngine(config: config, clock: clock),
-       _monitor = IntegrityMonitor(clock: clock);
+  })  : _config = config,
+        _store = store,
+        _cache = ConsensusCache(),
+        _syncEngine = SyncEngine(
+          config: config,
+          clock: clock,
+          cache: ConsensusCache(),
+          observer: _ProxySyncObserver(() => _instance?._observers ?? {}),
+        ),
+        _monitor = IntegrityMonitor(clock: clock);
 
   static TrustedTimeImpl? _instance;
 
@@ -38,6 +47,7 @@ final class TrustedTimeImpl {
     );
     await impl._bootstrap();
     _instance = impl;
+    _bgChannel.setMethodCallHandler(impl._handleBackgroundMethodCall);
     return impl;
   }
 
@@ -45,6 +55,8 @@ final class TrustedTimeImpl {
   final AnchorStore _store;
   final SyncEngine _syncEngine;
   final IntegrityMonitor _monitor;
+  final ConsensusCache _cache;
+  final _observers = <SyncObserver>{};
 
   TrustAnchor? _anchor;
   bool _trusted = false;
@@ -52,16 +64,29 @@ final class TrustedTimeImpl {
   Timer? _retryTimer;
   Timer? _desktopBgTimer;
   StreamSubscription<IntegrityEvent>? _integritySub;
-  Completer<void>? _syncInProgress; // #1: serialization guard
+  Completer<void>? _syncInProgress;
   int? _offlineLastUtcMs;
   int? _offlineLastWallMs;
 
   Stream<IntegrityEvent> get onIntegrityLost => _monitor.events;
   bool get isTrusted => _trusted;
 
+  /// The currently active trust anchor.
+  TrustAnchor? get anchor => _anchor;
+
+  /// Whether the current trust anchor is cryptographically secure.
+  bool get isSecure => _anchor?.authLevel == NtsAuthLevel.fullyAuthenticated;
+
+  /// The specific authentication level of the current time estimate.
+  NtsAuthLevel get authLevel => _anchor?.authLevel ?? NtsAuthLevel.none;
+
+  /// Registers an observer for synchronization events.
+  void registerObserver(SyncObserver observer) => _observers.add(observer);
+
+  /// Unregisters a synchronization observer.
+  void unregisterObserver(SyncObserver observer) => _observers.remove(observer);
+
   /// Returns the current trusted UTC time. Synchronous — no I/O.
-  ///
-  /// Throws [TrustedTimeNotReadyException] if no anchor is active.
   DateTime now() {
     if (!_trusted || _anchor == null) {
       throw const TrustedTimeNotReadyException();
@@ -75,7 +100,6 @@ final class TrustedTimeImpl {
   int nowUnixMs() => now().millisecondsSinceEpoch;
   String nowIso() => now().toIso8601String();
 
-  /// Estimates UTC when offline. **NOT tamper-proof.**
   TrustedTimeEstimate? nowEstimated() {
     int? baseUtcMs;
     int? baseWallMs;
@@ -95,8 +119,7 @@ final class TrustedTimeImpl {
       milliseconds: currentTime.millisecondsSinceEpoch - baseWallMs!,
     );
     final confidence = (1.0 - wallElapsed.inMinutes.abs() / 4320.0).clamp(0.0, 1.0);
-    final errorMs =
-        (wallElapsed.inMilliseconds.abs() * _config.oscillatorDriftFactor).round();
+    final errorMs = (wallElapsed.inMilliseconds.abs() * _config.oscillatorDriftFactor).round();
 
     return TrustedTimeEstimate(
       estimatedTime: DateTime.fromMillisecondsSinceEpoch(
@@ -113,21 +136,12 @@ final class TrustedTimeImpl {
     await _performSync();
   }
 
-  /// Registers OS-level background tasks for periodic anchor refreshing.
-  ///
-  /// [interval] must be at least 1 hour on mobile (clamped with a warning).
-  /// On desktop, falls back to a Dart [Timer.periodic].
-  /// On web, this is a no-op.
   Future<void> enableBackgroundSync(Duration interval) async {
     if (kIsWeb) return;
     if (defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS) {
-      // #9: warn if sub-hour interval is silently clamped
       if (kDebugMode && interval.inHours < 1) {
-        debugPrint(
-          '[TrustedTime] Background sync interval ${interval.inMinutes}m '
-          'is below the 1-hour minimum; clamped to 1 hour.',
-        );
+        debugPrint('[TrustedTime] Background sync interval below 1h; clamped.');
       }
       await _invokeBackgroundSync(interval);
     } else {
@@ -135,8 +149,6 @@ final class TrustedTimeImpl {
       _desktopBgTimer = Timer.periodic(interval, (_) => _performSync());
     }
   }
-
-  // ── Private lifecycle ──────────────────────────────────────────────
 
   Future<void> _bootstrap() async {
     _listenForIntegrityEvents();
@@ -169,26 +181,23 @@ final class TrustedTimeImpl {
     }
   }
 
+  /// Whether the host platform supports cryptographically secure time (NTS).
+  bool get supportsSecureTime => _config.ntsServers.isNotEmpty;
+
   void _listenForIntegrityEvents() {
     _integritySub?.cancel();
     _integritySub = _monitor.events.listen((event) {
       if (event.reason == TamperReason.systemClockJumped ||
           event.reason == TamperReason.deviceRebooted) {
         _trusted = false;
-        _performSync();
+        _cache.clear(); // #28: Immediate cache invalidation on anomaly
+        _performSync(); // #28: Immediate feedback loop re-sync
       }
-      // timezoneChanged does NOT invalidate trust or trigger resync:
-      // UTC timestamps (the engine's output) are timezone-independent.
-      // The event is still emitted on the onIntegrityLost stream so
-      // consumers can react (e.g. update local-time displays).
     });
   }
 
-  /// #1: Serialized sync — concurrent callers await the in-flight sync.
   Future<void> _performSync() async {
-    if (_syncInProgress != null) {
-      return _syncInProgress!.future;
-    }
+    if (_syncInProgress != null) return _syncInProgress!.future;
     final completer = Completer<void>();
     _syncInProgress = completer;
     _retryTimer?.cancel();
@@ -201,9 +210,7 @@ final class TrustedTimeImpl {
       _offlineLastWallMs = anchor.wallMs;
       _scheduleRefresh();
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('[TrustedTime] Sync failed: $e');
-      }
+      if (kDebugMode) debugPrint('[TrustedTime] Sync failed: $e');
       _trusted = false;
       _scheduleRetry();
     } finally {
@@ -225,10 +232,10 @@ final class TrustedTimeImpl {
 
   void _scheduleRetry() {
     _retryTimer?.cancel();
-    final delay = _config.refreshInterval < const Duration(minutes: 1)
-        ? _config.refreshInterval
-        : const Duration(seconds: 30);
-    _retryTimer = Timer(delay, _performSync);
+    final delay = _syncEngine.getNextRetryDelay();
+    if (delay > Duration.zero) {
+      _retryTimer = Timer(delay, _performSync);
+    }
   }
 
   static const _bgChannel = MethodChannel('trusted_time/background');
@@ -239,13 +246,14 @@ final class TrustedTimeImpl {
         'intervalHours': interval.inHours.clamp(1, 168),
       });
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('[TrustedTime] Background sync registration failed: $e');
-      }
+      if (kDebugMode) debugPrint('[TrustedTime] Background sync failed: $e');
     }
   }
 
-  /// #14: dispose clears SyncClock static state
+  Future<void> _handleBackgroundMethodCall(MethodCall call) async {
+    if (call.method == 'onBackgroundSync') await _performSync();
+  }
+
   void dispose() {
     _refreshTimer?.cancel();
     _retryTimer?.cancel();
@@ -257,18 +265,32 @@ final class TrustedTimeImpl {
   }
 }
 
-// ── Test Override Management ─────────────────────────────────────────
+class _ProxySyncObserver implements SyncObserver {
+  _ProxySyncObserver(this._getObservers);
+  final Set<SyncObserver> Function() _getObservers;
 
-TrustedTimeMock? _testOverride;
+  @override
+  void onSyncStarted() {
+    for (final o in _getObservers()) o.onSyncStarted();
+  }
 
-/// Only available in debug/test builds (guarded by [assert]).
-/// #22: In release builds this is a silent no-op by design — the assert
-/// body is stripped, preventing mock injection in production.
-void setTestOverride(TrustedTimeMock? mock) {
-  assert(() {
-    _testOverride = mock;
-    return true;
-  }(), 'overrideForTesting is only available in debug/test builds.');
+  @override
+  void onSampleReceived(TimeSample sample) {
+    for (final o in _getObservers()) o.onSampleReceived(sample);
+  }
+
+  @override
+  void onSourceFailed(String sourceId, Object error) {
+    for (final o in _getObservers()) o.onSourceFailed(sourceId, error);
+  }
+
+  @override
+  void onConsensusReached(ConsensusResult result) {
+    for (final o in _getObservers()) o.onConsensusReached(result);
+  }
+
+  @override
+  void onSyncFailed(Object error) {
+    for (final o in _getObservers()) o.onSyncFailed(error);
+  }
 }
-
-TrustedTimeMock? get testOverride => _testOverride;

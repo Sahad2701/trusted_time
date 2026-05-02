@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 /// Exhaustive reasons why the trusted time baseline was compromised.
 ///
 /// Each variant represents a distinct class of temporal integrity violation
-/// that the [IntegrityMonitor] can detect, either through native OS signals
+/// that the `IntegrityMonitor` can detect, either through native OS signals
 /// or through the engine's own consistency checks.
 enum TamperReason {
   /// The OS reports a significant change in the system wall clock.

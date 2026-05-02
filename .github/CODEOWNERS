@@ -1,0 +1,35 @@
+# CODEOWNERS — Specialized review requirements for the TrustedTime integrity subsystem.
+# All PRs involving security-critical or platform-native code require expert review.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for the entire project
+*                                   @Sahad2701
+
+# Core Time Integrity & Consensus Logic
+# These require architectural review to ensure mathematical invariants are maintained.
+/lib/src/domain/                    @Sahad2701
+/lib/src/sync_engine.dart           @Sahad2701
+
+# Security & Cryptography (NTS / RFC 8915)
+# Changes here require a security-audit review.
+/lib/src/sources/nts_source.dart    @Sahad2701 @security-team
+
+# Platform Native Implementations (Darwin Shared Layer)
+# Changes here require iOS/macOS platform expert review.
+/darwin/                            @Sahad2701 @ios-expert
+
+# Platform Native Implementations (Windows)
+# Changes here require Win32/C++ expert review.
+/windows/                           @Sahad2701 @cpp-expert
+
+# Platform Native Implementations (Linux)
+# Changes here require Linux/POSIX expert review.
+/linux/                             @Sahad2701 @linux-expert
+
+# Platform Native Implementations (Android)
+# Changes here require Android/Kotlin expert review.
+/android/                           @Sahad2701 @android-expert
+
+# Infrastructure & CI/CD Pipelines
+# Changes here require DevOps/Automation review.
+/.github/                           @Sahad2701 @devops-team
