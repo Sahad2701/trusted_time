@@ -52,3 +52,11 @@ final class TrustedTimeSecurityException implements Exception {
   @override
   String toString() => 'TrustedTimeSecurityException: $message';
 }
+
+/// Thrown when local state restoration or persistence fails.
+final class TrustedTimePersistenceException implements Exception {
+  const TrustedTimePersistenceException(this.message);
+  final String message;
+  @override
+  String toString() => 'TrustedTimePersistenceException: $message';
+}

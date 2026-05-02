@@ -17,6 +17,7 @@ object IntegrityWatcher {
     private var lastUptimeMs: Long = 0
 
     /** Connects the Android BroadcastReceiver to the Flutter EventSink. */
+    @Synchronized
     fun attach(context: Context, eventSink: EventChannel.EventSink) {
         // Double-attach guard: clean up any previous subscription first.
         detach(context)
@@ -56,6 +57,7 @@ object IntegrityWatcher {
     }
 
     /** Cleans up the background receiver. */
+    @Synchronized
     fun detach(context: Context) {
         receiver?.let {
             try { context.unregisterReceiver(it) } catch (_: Exception) {}
@@ -64,5 +66,6 @@ object IntegrityWatcher {
         sink = null
     }
 
+    @Synchronized
     private fun emit(data: Map<String, Any>) = sink?.success(data)
 }

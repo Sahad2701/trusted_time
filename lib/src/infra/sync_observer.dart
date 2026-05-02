@@ -2,24 +2,32 @@ import '../domain/time_sample.dart';
 import '../domain/marzullo_engine.dart';
 import '../models.dart';
 
-/// Observer for synchronization events.
-/// Use this for telemetry and monitoring.
+/// ## Absolute Top Tier: Telemetry and Observability
+///
+/// [SyncObserver] provides a high-fidelity interface for monitoring the 
+/// internal synchronization lifecycle of the engine.
+///
+/// Implement this interface to capture diagnostic metrics, audit security 
+/// events, or provide real-time feedback to the end-user during 
+/// synchronization cycles.
 abstract interface class SyncObserver {
-  /// Called when a synchronization cycle starts.
+  /// Called when a synchronization cycle is initiated by the engine.
   void onSyncStarted();
 
-  /// Called when a sample is received from a source.
+  /// Called when a raw [TimeSample] is successfully retrieved from a 
+  /// remote time authority.
   void onSampleReceived(TimeSample sample);
 
-  /// Called when a source query fails.
+  /// Called when a specific source query fails (e.g., timeout or network error).
   void onSourceFailed(String sourceId, Object error);
 
-  /// Called when a consensus is reached.
+  /// Called when the [MarzulloEngine] successfully resolves a new consensus 
+  /// from the available samples.
   void onConsensusReached(ConsensusResult result);
 
-  /// Called when a synchronization cycle fails.
+  /// Called when the entire synchronization cycle fails (e.g., quorum not met).
   void onSyncFailed(Object error);
 
-  /// Called when machine-readable metrics are generated for a successful cycle.
+  /// Called when comprehensive [SyncMetrics] are generated for a completed cycle.
   void onMetricsReported(SyncMetrics metrics);
 }
