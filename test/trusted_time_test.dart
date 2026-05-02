@@ -11,24 +11,24 @@ void main() {
   );
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(storageChannel, (call) async {
-        if (call.method == 'read') return null;
-        return null;
-      });
+    if (call.method == 'read') return null;
+    return null;
+  });
 
   // Mock monotonic uptime channel.
   const monotonicChannel = MethodChannel('trusted_time/monotonic');
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(monotonicChannel, (call) async {
-        if (call.method == 'getUptimeMs') return 1000;
-        return null;
-      });
+    if (call.method == 'getUptimeMs') return 1000;
+    return null;
+  });
 
   // Mock background task channel.
   const backgroundChannel = MethodChannel('trusted_time/background');
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(backgroundChannel, (call) async {
-        return null;
-      });
+    return null;
+  });
 
   // Mock integrity events channel.
   const integrityChannel = MethodChannel(
@@ -36,8 +36,8 @@ void main() {
   ); // Note: EventChannel uses same underlying messenger.
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(integrityChannel, (call) async {
-        return null;
-      });
+    return null;
+  });
 
   group('TrustedTime V2 Senior Rewrite Test Suite', () {
     late DateTime baseTime;

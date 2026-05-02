@@ -1,10 +1,15 @@
+#if os(iOS)
 import Flutter
 import UIKit
 import BackgroundTasks
+#elseif os(macOS)
+import FlutterMacOS
+import Foundation
+#endif
 
-/// Entry point and event coordinator for the TrustedTime iOS plugin.
+/// Unified entry point and event coordinator for the TrustedTime Darwin (iOS/macOS) plugin.
 ///
-/// **Host app requirement**: To enable background sync, add the task identifier
+/// **Host app requirement (iOS)**: To enable background sync, add the task identifier
 /// to the host app's `Info.plist`:
 /// ```xml
 /// <key>BGTaskSchedulerPermittedIdentifiers</key>
@@ -12,27 +17,39 @@ import BackgroundTasks
 ///   <string>com.trustedtime.backgroundsync</string>
 /// </array>
 /// ```
-/// Without this entry, `BGTaskScheduler.shared.register(...)` will fail
-/// silently and background syncs will not fire.
 public class TrustedTimePlugin: NSObject, FlutterPlugin {
 
     private var integrityEventSink: FlutterEventSink?
     private var clockObservers: [NSObjectProtocol] = []
+    
+    #if os(iOS)
     private let bgTaskId = "com.trustedtime.backgroundsync"
     private var bgRegistered = false
     private var bgIntervalHours = 24
+    private let probeUrl = "https://www.google.com"
+    private var backgroundChannel: FlutterMethodChannel?
+    #endif
 
     public static func register(with registrar: FlutterPluginRegistrar) {
         let instance = TrustedTimePlugin()
         
-        FlutterMethodChannel(name: "trusted_time/monotonic", binaryMessenger: registrar.messenger())
-            .setMethodCallHandler(instance.handle)
+        #if os(iOS)
+        let messenger = registrar.messenger()
+        #elseif os(macOS)
+        let messenger = registrar.messenger
+        #endif
+        
+        let monotonicChannel = FlutterMethodChannel(name: "trusted_time/monotonic", binaryMessenger: messenger)
+        monotonicChannel.setMethodCallHandler(instance.handle)
             
-        FlutterMethodChannel(name: "trusted_time/background", binaryMessenger: registrar.messenger())
-            .setMethodCallHandler(instance.handle)
+        let backgroundChannel = FlutterMethodChannel(name: "trusted_time/background", binaryMessenger: messenger)
+        backgroundChannel.setMethodCallHandler(instance.handle)
+        #if os(iOS)
+        instance.backgroundChannel = backgroundChannel
+        #endif
             
-        FlutterEventChannel(name: "trusted_time/integrity", binaryMessenger: registrar.messenger())
-            .setStreamHandler(instance)
+        let integrityChannel = FlutterEventChannel(name: "trusted_time/integrity", binaryMessenger: messenger)
+        integrityChannel.setStreamHandler(instance)
     }
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -40,19 +57,20 @@ public class TrustedTimePlugin: NSObject, FlutterPlugin {
         case "getUptimeMs":
             result(Int64(ProcessInfo.processInfo.systemUptime * 1000))
         case "enableBackgroundSync":
+            #if os(iOS)
             let hours = (call.arguments as? [String: Any])?["intervalHours"] as? Int ?? 24
             bgIntervalHours = hours
             registerBgSync()
             result(nil)
+            #else
+            result(nil)
+            #endif
         default:
             result(FlutterMethodNotImplemented)
         }
     }
 
-    /// Registers the BGAppRefreshTask once, then schedules the next execution.
-    /// The interval is read from [bgIntervalHours] so subsequent calls to
-    /// `enableBackgroundSync` with different intervals take effect in the
-    /// handler closure.
+    #if os(iOS)
     private func registerBgSync() {
         if !bgRegistered {
             BGTaskScheduler.shared.register(forTaskWithIdentifier: bgTaskId, using: nil) { [weak self] task in
@@ -67,22 +85,26 @@ public class TrustedTimePlugin: NSObject, FlutterPlugin {
         scheduleNextBgSync()
     }
 
-    /// Performs a lightweight HTTPS HEAD check (parity with Android worker)
-    /// to validate connectivity, then schedules the next background refresh.
     private func performBackgroundCheck(task: BGTask) {
-        let url = URL(string: "https://www.google.com")!
+        guard let url = URL(string: probeUrl) else {
+            task.setTaskCompleted(success: true)
+            return
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
         request.timeoutInterval = 10
 
         let dataTask = URLSession.shared.dataTask(with: request) { [weak self] _, _, _ in
-            self?.scheduleNextBgSync()
-            task.setTaskCompleted(success: true)
+            DispatchQueue.main.async {
+                self?.backgroundChannel?.invokeMethod("onBackgroundSync", arguments: nil)
+                self?.scheduleNextBgSync()
+                task.setTaskCompleted(success: true)
+            }
         }
 
-        task.expirationHandler = {
+        task.expirationHandler = { [weak self] in
             dataTask.cancel()
-            self.scheduleNextBgSync()
+            self?.scheduleNextBgSync()
             task.setTaskCompleted(success: false)
         }
 
@@ -94,6 +116,7 @@ public class TrustedTimePlugin: NSObject, FlutterPlugin {
         req.earliestBeginDate = Date(timeIntervalSinceNow: Double(bgIntervalHours) * 3600)
         try? BGTaskScheduler.shared.submit(req)
     }
+    #endif
 }
 
 extension TrustedTimePlugin: FlutterStreamHandler {
@@ -102,11 +125,19 @@ extension TrustedTimePlugin: FlutterStreamHandler {
         integrityEventSink = events
         let nc = NotificationCenter.default
         
+        #if os(iOS)
+        let clockChange = Notification.Name.NSSystemClockDidChange
+        let tzChange = Notification.Name.NSSystemTimeZoneDidChange
+        #elseif os(macOS)
+        let clockChange = Notification.Name.NSSystemClockDidChange
+        let tzChange = Notification.Name.NSSystemTimeZoneDidChange
+        #endif
+
         clockObservers = [
-            nc.addObserver(forName: .NSSystemClockDidChange, object: nil, queue: .main) { [weak self] _ in
+            nc.addObserver(forName: clockChange, object: nil, queue: .main) { [weak self] _ in
                 self?.emit(["type": "clockJumped"])
             },
-            nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: .main) { [weak self] _ in
+            nc.addObserver(forName: tzChange, object: nil, queue: .main) { [weak self] _ in
                 self?.emit(["type": "timezoneChanged"])
             },
         ]

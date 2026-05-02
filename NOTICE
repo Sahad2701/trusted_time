@@ -1,0 +1,45 @@
+trusted_time
+Copyright 2024-2026 Sahad2701 (https://github.com/Sahad2701)
+
+This software is distributed under the MIT License. See the LICENSE file
+for the full license text.
+
+---
+
+THIRD-PARTY NOTICES
+
+This package depends on the following open-source libraries. Their licenses
+are reproduced or referenced below.
+
+1. http (BSD-3-Clause)
+   https://pub.dev/packages/http
+   Copyright 2013 the Dart project authors. All rights reserved.
+
+2. flutter_secure_storage (BSD-3-Clause)
+   https://pub.dev/packages/flutter_secure_storage
+   Copyright 2017 German Saprykin
+
+3. ntp (MIT)
+   https://pub.dev/packages/ntp
+   Copyright (c) Bharathraj Rau
+
+4. timezone (MIT)
+   https://pub.dev/packages/timezone
+   Copyright (c) Vyacheslav Egorov
+
+5. cryptography (Apache-2.0)
+   https://pub.dev/packages/cryptography
+   Copyright 2020 Dint team
+
+6. web (BSD-3-Clause)
+   https://pub.dev/packages/web
+   Copyright 2013 the Dart project authors. All rights reserved.
+
+---
+
+FORK NOTICE
+
+This package is published under the name "trusted_time" on pub.dev and is
+maintained solely by Sahad2701. The pub.dev package name is owned by the
+original publisher. Any forks of this repository that wish to publish to
+pub.dev must use a distinct package name, consistent with pub.dev policy.

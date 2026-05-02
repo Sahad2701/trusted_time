@@ -22,8 +22,8 @@ import 'trusted_time_estimate.dart';
 /// ```
 final class TrustedTimeMock {
   TrustedTimeMock({required DateTime initial})
-    : _now = initial.toUtc(),
-      _trusted = true;
+      : _now = initial.toUtc(),
+        _trusted = true;
 
   DateTime _now;
   bool _trusted;

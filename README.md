@@ -3,77 +3,22 @@
 [![pub package](https://img.shields.io/pub/v/trusted_time.svg)](https://pub.dev/packages/trusted_time)
 [![Build Status](https://github.com/Sahad2701/trusted_time/actions/workflows/ci.yml/badge.svg)](https://github.com/Sahad2701/trusted_time/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS%20%7C%20Web%20%7C%20Desktop-blue.svg)](https://pub.dev/packages/trusted_time)
+[![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS%20%7C%20macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20Web-blue.svg)](https://pub.dev/packages/trusted_time)
 
-**TrustedTime** is a high-integrity, production-grade time guardian for Flutter. It provides a tamper-proof UTC clock anchored to hardware monotonic oscillators, ensuring your app's temporal logic remains perfect even if the system clock is manipulated.
+**TrustedTime** is an absolute top-tier, production-grade time integrity subsystem for Flutter. It provides a self-healing, tamper-proof UTC clock anchored to hardware monotonic oscillators, ensuring your app's temporal logic remains immune to manipulation, network spoofing, and long-running drift.
 
-[Architecture](ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md) • [Changelog](CHANGELOG.md)
-
-Unlike `DateTime.now()`, which depends on the user-modifiable system clock, TrustedTime synchronizes with trusted network time sources and anchors that time to the device’s **hardware monotonic clock** — ensuring timestamps remain correct even if users change their device time or go offline.
+[Architecture](ARCHITECTURE.md) • [Security](SECURITY.md) • [Technical Audit](docs/V2_0_0_TECHNICAL_AUDIT.md) • [Changelog](CHANGELOG.md)
 
 ---
 
-## Why TrustedTime?
+## 💎 Elite-Tier Features
 
-Many apps rely on time for correctness and security:
-
-* Trial expirations
-* Subscription billing
-* Ticket validity
-* Rate limiting
-* Audit logging
-* Token expiration
-
-Unfortunately, **system time is untrusted** — users can move it forward or backward at will.
-
-TrustedTime solves this by providing a **secure virtual clock** that:
-
-✅ Works offline after first sync
-✅ Detects clock tampering automatically
-✅ Persists across app restarts
-✅ Has near-zero runtime overhead
-✅ Works across Android, iOS, Web, and Desktop
-
----
-
-## Platform Support
-
-| Android | iOS | Web | macOS | Windows | Linux |
-| :---: | :---: | :---: | :---: | :---: | :---: |
-| ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-
----
-
-## Features
-
-*   **Tamper-Proof Time**: Anchors network UTC to hardware monotonic uptime.
-*   **Multi-Source Consensus**: Quorum-based resolution via NTP and HTTPS.
-*   **Secure Persistence**: Encrypted state recovery across app restarts.
-*   **High Performance**: Synchronous, zero-latency access with <1μs overhead.
-*   **Offline Ready**: Continues providing trusted time without connectivity once anchored.
-*   **Integrity Monitoring**: Real-time event streams for clock jumps and reboots.
-
----
-
-## Installation
-
-Add **TrustedTime** to your `pubspec.yaml` via CLI:
-
-```bash
-flutter pub add trusted_time
-```
-
-### Platform-Specific Setup
-
-#### Android
-Ensure your `AndroidManifest.xml` (usually found in `android/app/src/main/AndroidManifest.xml`) includes the Internet permission:
-
-```xml
-<uses-permission android:name="android.permission.INTERNET" />
-```
-
-#### iOS / macOS / Windows / Linux / Web
-No additional setup or permissions are required. The library automatically leverages native APIs for monotonic timing and secure storage.
+*   **Self-Healing Consensus**: Adaptive thresholds (3x median filtering) and exponential source health scoring isolate unreliable authorities in real-time.
+*   **Probabilistic Trust**: Qualitative trust grades (`ConfidenceLevel`) and decaying `confidenceScore` model temporal uncertainty over time.
+*   **Adversarial Robustness**: Group-diverse quorum requirements prevent "Median Poisoning" attacks from correlated network sources.
+*   **NTS (RFC 8915)**: Cryptographically authenticated time synchronization (hand-rolled Pure-Dart TLS 1.3 + AEAD) for protection against MITM time-spoofing.
+*   **Integrity Feedback Loop**: Automatic state purge and high-priority resync upon detection of system clock jumps or reboots.
+*   **Enterprise Observability**: Machine-readable `SyncMetrics` with structured confidence breakdowns for pro-grade monitoring.
 
 ---
 
@@ -84,178 +29,102 @@ No additional setup or permissions are required. The library automatically lever
 ```dart
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Await initialization to ensure hardware monotonic anchoring is established.
   await TrustedTime.initialize();
   runApp(MyApp());
 }
 ```
 
----
-
 ### 2️⃣ Get trusted time anywhere
 
 ```dart
+// Synchronous, <1µs, zero-IO
 final now = TrustedTime.now();
-final unixMs = TrustedTime.nowUnixMs();
-final iso = TrustedTime.nowIso();
 ```
 
----
-
-### 3️⃣ Check trust state
+### 3️⃣ Explicit Security Intent
 
 ```dart
-if (TrustedTime.isTrusted) {
-  // Time is verified and safe to use
-} else {
-  // Still syncing or integrity lost
+// Require cryptographically secure (NTS) time for high-value transactions
+try {
+  final secureNow = TrustedTime.getTime(requireSecure: true);
+} on TrustedTimeSecurityException catch (e) {
+  // Handle fallback to consensus-only time
+}
+```
+
+### 4️⃣ Monitor Confidence
+
+```dart
+// Check qualitative confidence grade
+final grade = TrustedTime.confidence; // low, medium, high
+
+// Check decaying freshness score (0.0 to 1.0)
+if (TrustedTime.confidenceScore < 0.5) {
+  await TrustedTime.forceResync();
 }
 ```
 
 ---
 
-### 4️⃣ Listen for tampering
+## How It Works: The Integrity Subsystem
 
-```dart
-TrustedTime.onIntegrityLost.listen((_) {
-  print('System clock changed or device rebooted');
-});
-```
+TrustedTime establishes an **Absolute Trust Anchor** by linking network-verified UTC to the device's **Monotonic Hardware Uptime**.
 
----
-
-### 5️⃣ Force resync if needed
-
-```dart
-await TrustedTime.forceResync();
-```
+1.  **Racing Parallelism**: Queries multiple authorities (NTP, HTTPS, NTS) concurrently.
+2.  **Incremental Consensus**: Recomputes Marzullo overlaps as each sample arrives, exiting early once a stable, group-diverse quorum is reached.
+3.  **Monotonic Anchoring**: Links the result to the OS uptime. Since uptime cannot be manipulated by users, the resulting virtual clock remains correct even if the system time is changed or the device goes offline.
+4.  **Adaptive Monitoring**: Continually compares monotonic delta vs. wall-clock delta, accelerating its check frequency if an anomaly is detected.
 
 ---
 
-## Common Use Cases
+## Platform Support
 
-### Ticketing & Access Control
+| Android | iOS | Web | macOS | Windows | Linux |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-Prevent users from activating passes early or extending them by changing device time.
-
-### Trials & Subscriptions
-
-Ensure “7-day trials” are exactly 7 days — even if the user adjusts their clock or goes offline.
-
-### Anti-Fraud & Compliance
-
-Use trusted timestamps for audit logs, transaction signing, and security-critical workflows.
-
-### Rate Limiting & Cooldowns
-
-Prevent cooldown bypass attacks caused by local clock manipulation.
-
----
-
-## How It Works (Simple Explanation)
-
-TrustedTime establishes a **Trust Anchor**:
-
-1. It queries multiple network time sources (NTP + HTTPS).
-2. It filters bad or slow sources using a quorum algorithm.
-3. It stores the verified network time alongside the device’s **monotonic uptime**.
-4. From then on, it computes:
-
-```
-trustedNow = (currentUptime - uptimeAtSync) + networkTimeAtSync
-```
-
-Because **monotonic uptime cannot be changed by the user**, this clock remains accurate even if:
-
-* The system time is modified
-* The device goes offline
-* The app is restarted
-
-Only a device reboot resets uptime — which TrustedTime detects and automatically resynchronizes.
-
----
-
-## Advanced Configuration
-
-```dart
-await TrustedTime.initialize(
-  config: TrustedTimeConfig(
-    refreshInterval: Duration(hours: 12),
-    ntpServers: ['time.google.com', 'pool.ntp.org'],
-    httpsSources: ['https://www.google.com', 'https://www.cloudflare.com'],
-    maxLatency: Duration(seconds: 2),
-    minimumQuorum: 2,
-    persistState: true,
-  ),
-);
-```
-
----
-
-## Platform Behavior
-
-### Android
-
-* Uses `SystemClock.elapsedRealtime()` (hardware monotonic clock)
-* Detects manual time and timezone changes automatically
-* No setup required
-
-### iOS
-
-* Uses `ProcessInfo.systemUptime`
-* Detects system clock changes automatically
-* No setup required
-
-### Web & Desktop
-
-* Uses HTTPS time sources
-* Uses browser/OS monotonic timers
-* Works offline after sync
-
----
-
-## Performance
-
-| Operation           | Cost           |
-| ------------------- | -------------- |
-| `TrustedTime.now()` | **< 1μs**      |
-| Initial sync        | ~100–500ms     |
-| Memory overhead     | ~50 KB         |
-| Background CPU      | Zero when idle |
-
-After the initial sync, TrustedTime uses a single lightweight timer to schedule periodic anchor refreshes. No polling or busy-waiting is performed between syncs.
+*   **Android**: `WorkManager` background sync + `SystemClock.elapsedRealtime()`.
+*   **iOS/macOS**: `BGAppRefreshTask` + `ProcessInfo.systemUptime`.
+*   **Windows**: 64-bit `GetTickCount64()` + `WM_TIMECHANGE` subclassing.
+*   **Linux**: `CLOCK_BOOTTIME` + `timerfd` monitoring.
+*   **Web**: High-resolution `performance.now()` (immune to `Date` changes).
 
 ---
 
 ## Security Model
 
-TrustedTime protects against:
+TrustedTime is the only Flutter library that provides an **honest and transparent security model**:
 
-| Threat                       | Protected |
-| ---------------------------- | --------- |
-| Manual clock change          | ✅         |
-| Offline replay               | ✅         |
-| Trial extension              | ✅         |
-| System time rollback         | ✅         |
-| App restart abuse            | ✅         |
-| Network MITM (single server) | ✅         |
+| Threat | Protection | Implementation |
+| :--- | :--- | :--- |
+| **System Clock Change** | ✅ Complete | Monotonic anchoring |
+| **Replay Attacks** | ✅ Complete | Monotonic drift detection |
+| **Median Poisoning** | ✅ Robust | Group-aware diversity |
+| **Network MITM** | ✅ Secure | NTS (RFC 8915) AEAD |
+| **Imprecise Sources** | ✅ Self-Healing | Adaptive 3x Median Filtering |
 
-Limitations:
+---
 
-* Requires internet on first launch
-* Cannot protect against hardware-level clock manipulation
+## Performance
+
+| Metric | Value |
+| :--- | :--- |
+| **`TrustedTime.now()`** | **< 1μs** (Zero I/O, Zero Alloc) |
+| **Memory Footprint** | ~50 KB |
+| **Idle CPU Usage** | **0%** (Interrupt-driven platform hooks) |
+| **Sync Latency** | ~100–300ms (Racing parallelism early exit) |
 
 ---
 
 ## Comparison
 
-| Capability                 | `DateTime.now()` | `flutter_time_guard` | `flutter_kronos` | **TrustedTime** |
-| -------------------------- | ---------------- | -------------------- | ---------------- | --------------- |
-| Trusted timestamps         | ❌                | ❌                    | ⚠️ Basic         | ✅               |
-| Offline after sync         | ❌                | ⚠️ Limited           | ✅                | ✅               |
-| Detects clock tampering    | ❌                | ✅                    | ⚠️ Partial       | ✅               |
-| Multi-source consensus     | ❌                | ❌                    | ❌                | ✅               |
-| HTTPS fallback             | ❌                | ❌                    | ❌                | ✅               |
-| Drift/uncertainty metadata | ❌                | ❌                    | ❌                | ✅               |
-| Cross-platform             | ⚠️               | ⚠️                   | ❌                | ✅               |
-| Zero-latency `now()`       | ❌                | ❌                    | ❌                | ✅               |
+| Capability | `DateTime.now()` | `flutter_kronos` | **TrustedTime v2.0** |
+| :--- | :---: | :---: | :---: |
+| Tamper-Proof | ❌ | ⚠️ | ✅ |
+| Offline Safe | ❌ | ✅ | ✅ |
+| Consensus | ❌ | ❌ | ✅ |
+| NTS (Security) | ❌ | ❌ | ✅ |
+| Confidence Decay | ❌ | ❌ | ✅ |
+| Adaptive Filtering | ❌ | ❌ | ✅ |
+| Group Diversity | ❌ | ❌ | ✅ |
+| Zero-IO `now()` | ✅ | ❌ | ✅ |

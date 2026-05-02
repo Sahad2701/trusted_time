@@ -33,7 +33,8 @@ void main() {
 
     tearDown(() => monitor.dispose());
 
-    test('checkRebootOnWarmStart detects reboot when uptime < anchor', () async {
+    test('checkRebootOnWarmStart detects reboot when uptime < anchor',
+        () async {
       clock.value = 500;
       final anchor = TrustAnchor(
         networkUtcMs: DateTime.now().millisecondsSinceEpoch,
@@ -45,7 +46,8 @@ void main() {
       expect(rebooted, isTrue);
     });
 
-    test('checkRebootOnWarmStart returns false when uptime >= anchor', () async {
+    test('checkRebootOnWarmStart returns false when uptime >= anchor',
+        () async {
       clock.value = 20000;
       final anchor = TrustAnchor(
         networkUtcMs: DateTime.now().millisecondsSinceEpoch,

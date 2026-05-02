@@ -1,7 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trusted_time/src/exceptions.dart';
 import 'package:trusted_time/src/models.dart';
-import 'package:trusted_time/src/marzullo.dart';
+import 'package:trusted_time/src/domain/marzullo_engine.dart';
+import 'package:trusted_time/src/domain/time_sample.dart';
+import 'package:trusted_time/src/domain/time_source.dart';
 
 void main() {
   group('TrustedTimeSyncException', () {
@@ -77,11 +79,11 @@ void main() {
       final tMs = t.millisecondsSinceEpoch;
 
       final result = engine.resolve([
-        SourceSample(sourceId: 'a', utc: t, roundTripMs: 20),
-        SourceSample(
+        TimeSample(sourceId: 'a', utc: t, uncertaintyMs: 10),
+        TimeSample(
           sourceId: 'b',
           utc: DateTime.fromMillisecondsSinceEpoch(tMs + 20, isUtc: true),
-          roundTripMs: 20,
+          uncertaintyMs: 10,
         ),
       ]);
 
@@ -95,11 +97,11 @@ void main() {
       final tMs = t.millisecondsSinceEpoch;
 
       final result = engine.resolve([
-        SourceSample(sourceId: 'a', utc: t, roundTripMs: 10),
-        SourceSample(
+        TimeSample(sourceId: 'a', utc: t, uncertaintyMs: 5),
+        TimeSample(
           sourceId: 'b',
           utc: DateTime.fromMillisecondsSinceEpoch(tMs + 1000, isUtc: true),
-          roundTripMs: 10,
+          uncertaintyMs: 5,
         ),
       ]);
 
@@ -122,13 +124,22 @@ void main() {
 
     test('equality and hashCode', () {
       final a = TrustAnchor(
-        networkUtcMs: 100, uptimeMs: 200, wallMs: 300, uncertaintyMs: 10,
+        networkUtcMs: 100,
+        uptimeMs: 200,
+        wallMs: 300,
+        uncertaintyMs: 10,
       );
       final b = TrustAnchor(
-        networkUtcMs: 100, uptimeMs: 200, wallMs: 300, uncertaintyMs: 10,
+        networkUtcMs: 100,
+        uptimeMs: 200,
+        wallMs: 300,
+        uncertaintyMs: 10,
       );
       final c = TrustAnchor(
-        networkUtcMs: 999, uptimeMs: 200, wallMs: 300, uncertaintyMs: 10,
+        networkUtcMs: 999,
+        uptimeMs: 200,
+        wallMs: 300,
+        uncertaintyMs: 10,
       );
       expect(a, equals(b));
       expect(a.hashCode, equals(b.hashCode));
@@ -137,7 +148,10 @@ void main() {
 
     test('copyWith returns new instance with updated uncertainty', () {
       final anchor = TrustAnchor(
-        networkUtcMs: 100, uptimeMs: 200, wallMs: 300, uncertaintyMs: 10,
+        networkUtcMs: 100,
+        uptimeMs: 200,
+        wallMs: 300,
+        uncertaintyMs: 10,
       );
       final copy = anchor.copyWith(uncertaintyMs: 50);
       expect(copy.uncertaintyMs, 50);
@@ -146,7 +160,7 @@ void main() {
   });
 }
 
-class _FakeSource implements TrustedTimeSource {
+class _FakeSource implements TimeSource {
   _FakeSource(this._id);
   final String _id;
 
@@ -154,5 +168,9 @@ class _FakeSource implements TrustedTimeSource {
   String get id => _id;
 
   @override
-  Future<DateTime> queryUtc() async => DateTime.now().toUtc();
+  Future<TimeSample> getTime() async => TimeSample(
+        utc: DateTime.now().toUtc(),
+        uncertaintyMs: 10,
+        sourceId: _id,
+      );
 }
