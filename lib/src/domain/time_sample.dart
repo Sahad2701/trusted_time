@@ -1,7 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'time_interval.dart';
-
-import '../sources/nts_source.dart';
+import '../../trusted_time.dart';
 
 /// Represents a single time measurement from a remote authority.
 /// Combines the mathematical [interval] with telemetry [sourceId] and [groupId].
@@ -27,7 +25,8 @@ final class TimeSample {
   final NtsAuthLevel authLevel;
 
   /// Helper to get the UTC time (midpoint of the interval).
-  DateTime get utc => DateTime.fromMillisecondsSinceEpoch(interval.midpoint, isUtc: true);
+  DateTime get utc =>
+      DateTime.fromMillisecondsSinceEpoch(interval.midpoint, isUtc: true);
 
   /// Helper to get the uncertainty in milliseconds.
   int get uncertaintyMs => interval.width ~/ 2;

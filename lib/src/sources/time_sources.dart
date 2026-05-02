@@ -49,8 +49,10 @@ final class HttpsSource implements TimeSource {
         .add(Duration(milliseconds: sw.elapsedMilliseconds ~/ 2))
         .toUtc();
 
-    final startMs = correctedTime.millisecondsSinceEpoch - (sw.elapsedMilliseconds ~/ 2);
-    final endMs = correctedTime.millisecondsSinceEpoch + (sw.elapsedMilliseconds ~/ 2);
+    final startMs =
+        correctedTime.millisecondsSinceEpoch - (sw.elapsedMilliseconds ~/ 2);
+    final endMs =
+        correctedTime.millisecondsSinceEpoch + (sw.elapsedMilliseconds ~/ 2);
 
     return TimeSample(
       interval: TimeInterval(startMs: startMs, endMs: endMs),
@@ -116,7 +118,7 @@ final class _HttpDate {
       final monthStr = parts[1];
       final month = _months[monthStr];
       if (month == null) throw FormatException('Invalid month: $monthStr');
-      
+
       var year = int.parse(parts[2]);
       if (year < 100) {
         year += year < 70 ? 2000 : 1900; // RFC 2616 §19.3
@@ -126,10 +128,19 @@ final class _HttpDate {
       final min = int.parse(timeParts[1]);
       final sec = int.parse(timeParts[2]);
 
-      if (day < 1 || day > 31) throw const FormatException('Day out of range');
-      if (hour < 0 || hour > 23) throw const FormatException('Hour out of range');
-      if (min < 0 || min > 59) throw const FormatException('Minute out of range');
-      if (sec < 0 || sec > 60) throw const FormatException('Second out of range'); // Allow leap seconds
+      if (day < 1 || day > 31) {
+        throw const FormatException('Day out of range');
+      }
+      if (hour < 0 || hour > 23) {
+        throw const FormatException('Hour out of range');
+      }
+      if (min < 0 || min > 59) {
+        throw const FormatException('Minute out of range');
+      }
+      if (sec < 0 || sec > 60) {
+        throw const FormatException(
+            'Second out of range'); // Allow leap seconds
+      }
 
       return DateTime.utc(year, month, day, hour, min, sec);
     } catch (e) {

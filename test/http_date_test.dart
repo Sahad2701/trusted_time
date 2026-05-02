@@ -7,7 +7,8 @@ void main() {
   group('HttpsSource / HttpDate Validation (HIGH-7)', () {
     test('throws FormatException for invalid day range', () async {
       final client = MockClient((request) async {
-        return http.Response('', 200, headers: {'date': 'Wed, 99 Jan 2024 12:00:00 GMT'});
+        return http.Response('', 200,
+            headers: {'date': 'Wed, 99 Jan 2024 12:00:00 GMT'});
       });
       final source = HttpsSource('https://test.com', client: client);
 
@@ -16,7 +17,8 @@ void main() {
 
     test('throws FormatException for invalid hour range', () async {
       final client = MockClient((request) async {
-        return http.Response('', 200, headers: {'date': 'Wed, 01 Jan 2024 25:00:00 GMT'});
+        return http.Response('', 200,
+            headers: {'date': 'Wed, 01 Jan 2024 25:00:00 GMT'});
       });
       final source = HttpsSource('https://test.com', client: client);
 
@@ -25,7 +27,8 @@ void main() {
 
     test('throws FormatException for invalid month name', () async {
       final client = MockClient((request) async {
-        return http.Response('', 200, headers: {'date': 'Wed, 01 Bad 2024 12:00:00 GMT'});
+        return http.Response('', 200,
+            headers: {'date': 'Wed, 01 Bad 2024 12:00:00 GMT'});
       });
       final source = HttpsSource('https://test.com', client: client);
 
@@ -34,7 +37,8 @@ void main() {
 
     test('successfully parses valid RFC 1123 date', () async {
       final client = MockClient((request) async {
-        return http.Response('', 200, headers: {'date': 'Wed, 01 May 2024 10:00:00 GMT'});
+        return http.Response('', 200,
+            headers: {'date': 'Wed, 01 May 2024 10:00:00 GMT'});
       });
       final source = HttpsSource('https://test.com', client: client);
 

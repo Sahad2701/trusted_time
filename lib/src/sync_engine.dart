@@ -13,15 +13,15 @@ import 'infra/consensus_cache.dart';
 
 /// ## Absolute Top Tier: Distributed Lifecycle Orchestration
 ///
-/// The [SyncEngine] is the heart of the time integrity subsystem. It implements 
+/// The [SyncEngine] is the heart of the time integrity subsystem. It implements
 /// a self-healing operational state machine designed for adversarial robustness.
 ///
 /// Key Refinements:
-/// 1. **Racing Parallelism**: Minimizes cold-start latency through concurrent 
+/// 1. **Racing Parallelism**: Minimizes cold-start latency through concurrent
 ///    multi-source querying.
-/// 2. **Adaptive Stability Escalation**: Dynamically adjusts quorum requirements 
+/// 2. **Adaptive Stability Escalation**: Dynamically adjusts quorum requirements
 ///    based on population variance.
-/// 3. **Mathematical Outlier Filtering**: Uses median-based guards to neutralize 
+/// 3. **Mathematical Outlier Filtering**: Uses median-based guards to neutralize
 ///    malicious or jittery time authorities.
 final class SyncEngine {
   SyncEngine({
@@ -55,28 +55,28 @@ final class SyncEngine {
   ];
 
   /// Tracks consecutive failures for each source to implement exponential cooldown.
-  final _sourceHealth = <String, int>{}; 
-  
+  final _sourceHealth = <String, int>{};
+
   /// Precise timestamps until which a source is considered "blacklisted."
   final _blacklistUntil = <String, DateTime>{};
-  
+
   int _syncAttempts = 0;
 
   /// Executes a full synchronization cycle across all healthy sources.
   ///
-  /// This method is the primary driver of trust establishment. It races sources, 
-  /// performs adaptive outlier filtering, and requires stability across 
+  /// This method is the primary driver of trust establishment. It races sources,
+  /// performs adaptive outlier filtering, and requires stability across
   /// multiple samples before finalizing an anchor.
   Future<TrustAnchor> sync() async {
     _observer?.onSyncStarted();
     final swSync = Stopwatch()..start();
-    
+
     final samples = <TimeSample>[];
     final completer = Completer<TrustAnchor>();
     var streamClosed = false;
     StreamSubscription<TimeSample?>? streamSub;
     final sampleController = StreamController<TimeSample?>();
-    
+
     try {
       final now = DateTime.now();
       final activeSources = _sources.where((s) {
@@ -87,16 +87,15 @@ final class SyncEngine {
       var pendingQueries = activeSources.length;
       if (pendingQueries == 0) {
         throw TrustedTimeSyncException(
-          'All available time sources are currently in exponential cooldown due to persistent failures.'
-        );
+            'All available time sources are currently in exponential cooldown due to persistent failures.');
       }
 
       TimeInterval? lastStabilityInterval;
       var stableCount = 0;
 
-      // 1. Process samples sequentially via a stream to preserve determinism 
-      // and prevent race conditions during list mutation. This ensures that 
-      // outlier filtering and consensus resolution always happen on a consistent 
+      // 1. Process samples sequentially via a stream to preserve determinism
+      // and prevent race conditions during list mutation. This ensures that
+      // outlier filtering and consensus resolution always happen on a consistent
       // snapshot of the sample population.
       streamSub = sampleController.stream.listen((sample) {
         if (completer.isCompleted) return;
@@ -105,27 +104,30 @@ final class SyncEngine {
           samples.add(sample);
           _observer?.onSampleReceived(sample);
 
-          // Adaptive Outlier Filtering: Uses a median-based guard to identify 
+          // Adaptive Outlier Filtering: Uses a median-based guard to identify
           // and exclude sources that deviate significantly from the population.
           if (samples.length >= 3) {
-            final uncertainties = samples.map((s) => s.uncertaintyMs).toList()..sort();
+            final uncertainties = samples.map((s) => s.uncertaintyMs).toList()
+              ..sort();
             final medianU = uncertainties[uncertainties.length ~/ 2];
-            
-            // Heuristic: If a sample's uncertainty is > 3x the median, it is 
+
+            // Heuristic: If a sample's uncertainty is > 3x the median, it is
             // likely malicious or experiencing extreme network jitter.
             if (sample.uncertaintyMs > max(medianU * 3, 500)) {
               samples.remove(sample);
-              _observer?.onSourceFailed(sample.sourceId, 'Adaptive exclusion: statistical outlier detected');
+              _observer?.onSourceFailed(sample.sourceId,
+                  'Adaptive exclusion: statistical outlier detected');
             }
           }
 
           final result = _engine.resolve(samples);
           if (result != null) {
-            // Stability Check: Escalates quorum requirements if high variance 
+            // Stability Check: Escalates quorum requirements if high variance
             // is detected, ensuring we don't anchor to a jittery consensus.
-            final varianceDetected = samples.any(
-              (s) => (s.interval.midpoint - result.utc.millisecondsSinceEpoch).abs() > 500
-            );
+            final varianceDetected = samples.any((s) =>
+                (s.interval.midpoint - result.utc.millisecondsSinceEpoch)
+                    .abs() >
+                500);
             final requiredStability = varianceDetected ? 3 : 2;
 
             if (lastStabilityInterval == result.interval) {
@@ -136,11 +138,12 @@ final class SyncEngine {
             lastStabilityInterval = result.interval;
 
             if (stableCount >= requiredStability) {
-              // Early Exit: If configured, we return as soon as a stable quorum 
+              // Early Exit: If configured, we return as soon as a stable quorum
               // is reached to minimize power and network consumption.
               if (_config.earlyExit || samples.length == activeSources.length) {
                 swSync.stop();
-                unawaited(_completeSync(result, swSync.elapsedMilliseconds, completer));
+                unawaited(_completeSync(
+                    result, swSync.elapsedMilliseconds, completer));
               }
             }
           }
@@ -148,9 +151,8 @@ final class SyncEngine {
 
         pendingQueries--;
         if (pendingQueries == 0 && !completer.isCompleted) {
-          completer.completeError(
-            TrustedTimeSyncException('Failed to reach quorum after exhausting all healthy sources.')
-          );
+          completer.completeError(TrustedTimeSyncException(
+              'Failed to reach quorum after exhausting all healthy sources.'));
         }
       });
 
@@ -161,48 +163,48 @@ final class SyncEngine {
             sampleController.add(s);
           }
         }).catchError((Object e) {
-           _observer?.onSourceFailed(source.id, e);
-           if (!streamClosed && !sampleController.isClosed) {
-             sampleController.add(null); // Ensure pendingQueries still decrements
-           }
+          _observer?.onSourceFailed(source.id, e);
+          if (!streamClosed && !sampleController.isClosed) {
+            sampleController
+                .add(null); // Ensure pendingQueries still decrements
+          }
         }));
       }
 
       final anchor = await completer.future.timeout(
-        _config.maxLatency + const Duration(seconds: 1),
-        onTimeout: () {
-          if (!completer.isCompleted && samples.length >= _config.minimumQuorum) {
-             final result = _engine.resolve(samples);
-             if (result != null) return _createAnchor(result);
-          }
-          throw TrustedTimeSyncException('Synchronization timed out before reaching a stable quorum.');
+          _config.maxLatency + const Duration(seconds: 1), onTimeout: () {
+        if (!completer.isCompleted && samples.length >= _config.minimumQuorum) {
+          final result = _engine.resolve(samples);
+          if (result != null) return _createAnchor(result);
         }
-      );
+        throw TrustedTimeSyncException(
+            'Synchronization timed out before reaching a stable quorum.');
+      });
 
-      _syncAttempts = 0; 
+      _syncAttempts = 0;
       _cache?.update(anchor);
       return anchor;
     } catch (e) {
       _observer?.onSyncFailed(e);
       _syncAttempts++;
-      if (!completer.isCompleted) {
-        completer.completeError(e); // Ensure future unblocks on error
-      }
+      if (!completer.isCompleted) completer.completeError(e);
       rethrow;
     } finally {
       streamClosed = true;
+      // Cancel subscription first to prevent hanging when controller closes
       await streamSub?.cancel();
       await sampleController.close();
     }
   }
 
-  Future<void> _completeSync(ConsensusResult result, int latencyMs, Completer<TrustAnchor> completer) async {
+  Future<void> _completeSync(ConsensusResult result, int latencyMs,
+      Completer<TrustAnchor> completer) async {
     if (completer.isCompleted) return;
-    
+
     try {
       final anchor = await _createAnchor(result);
       _observer?.onConsensusReached(result);
-      
+
       _observer?.onMetricsReported(SyncMetrics(
         latencyMs: latencyMs,
         uncertaintyMs: result.uncertaintyMs,
@@ -245,12 +247,13 @@ final class SyncEngine {
       return sample;
     } catch (e) {
       _observer?.onSourceFailed(source.id, e);
-      
+
       final score = (_sourceHealth[source.id] ?? 0) + 1;
       _sourceHealth[source.id] = score;
       final cooldownMin = pow(2, min(score, 6)).toInt();
-      _blacklistUntil[source.id] = DateTime.now().add(Duration(minutes: cooldownMin));
-      
+      _blacklistUntil[source.id] =
+          DateTime.now().add(Duration(minutes: cooldownMin));
+
       return null;
     }
   }

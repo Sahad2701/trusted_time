@@ -102,7 +102,7 @@ void main() {
       test('touching intervals (upper == lower) count as overlap', () {
         final left = baseMs - 10;
         final right = baseMs + 10;
-        
+
         final result = engine.resolve([
           TimeSample(
             sourceId: 'a',
@@ -115,7 +115,7 @@ void main() {
             interval: TimeInterval(startMs: baseMs, endMs: right + 10),
           ),
         ]);
-        
+
         if (result != null) {
           expect(result.utc.millisecondsSinceEpoch, equals(baseMs));
         }

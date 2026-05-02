@@ -33,5 +33,5 @@ final class TimeInterval {
           endMs == other.endMs;
 
   @override
-  int get hashCode => startMs.hashCode ^ endMs.hashCode;
+  int get hashCode => Object.hash(startMs, endMs);
 }

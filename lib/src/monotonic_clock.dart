@@ -25,7 +25,7 @@ final class PlatformMonotonicClock implements MonotonicClock {
 
 /// In-memory cache enabling sub-microsecond synchronous access to trusted time.
 ///
-/// Uses Dart's [Stopwatch] (backed by the OS monotonic clock) so that 
+/// Uses Dart's [Stopwatch] (backed by the OS monotonic clock) so that
 /// elapsed-time measurement is immune to system clock manipulation.
 final class SyncClock {
   SyncClock();

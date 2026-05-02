@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:trusted_time/src/models.dart';
-import 'package:trusted_time/src/sources/nts_source.dart';
+import 'package:trusted_time/trusted_time.dart';
 
 void main() {
   group('TrustAnchor Deserialization Safety (CRITICAL-6)', () {

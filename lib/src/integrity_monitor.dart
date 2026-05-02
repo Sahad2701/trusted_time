@@ -6,24 +6,24 @@ import 'integrity_event.dart';
 import 'models.dart';
 import 'monotonic_clock.dart';
 
-/// A high-integrity monitoring agent that detects temporal tampering and 
+/// A high-integrity monitoring agent that detects temporal tampering and
 /// OS-level clock jumps.
 ///
 /// The [IntegrityMonitor] implements a dual-layer defense strategy:
-/// 1. **Native Signals**: Listens for platform-native events (e.g., 
+/// 1. **Native Signals**: Listens for platform-native events (e.g.,
 ///    `ACTION_TIME_CHANGED` on Android, `WM_TIMECHANGE` on Windows).
-/// 2. **Monotonic Drift Detection**: A Dart-side secondary check that compares 
+/// 2. **Monotonic Drift Detection**: A Dart-side secondary check that compares
 ///    the delta of the hardware monotonic clock vs. the system wall clock.
 ///
-/// This dual-layer approach ensures that even if native OS hooks are 
-/// bypassed or suppressed, manual wall-clock manipulation is eventually 
+/// This dual-layer approach ensures that even if native OS hooks are
+/// bypassed or suppressed, manual wall-clock manipulation is eventually
 /// detected via monotonic divergence.
 final class IntegrityMonitor {
   IntegrityMonitor({required MonotonicClock clock}) : _clock = clock;
 
   final MonotonicClock _clock;
   final _controller = StreamController<IntegrityEvent>.broadcast();
-  
+
   /// The underlying platform channel for native clock-change notifications.
   static const _channel = EventChannel('trusted_time/integrity');
 
@@ -41,7 +41,7 @@ final class IntegrityMonitor {
     _lastTimezoneOffset = DateTime.now().timeZoneOffset;
     _nativeSub?.cancel();
     _nativeSub = _channel.receiveBroadcastStream().listen(_onNativeEvent);
-    
+
     _startDriftCheck();
   }
 
@@ -58,11 +58,11 @@ final class IntegrityMonitor {
   ///
   /// To optimize for both battery and integrity:
   /// * Upon anomaly detection, the check frequency accelerates to **30 seconds**.
-  /// * As stability is maintained, the interval gradually relaxes back to 
+  /// * As stability is maintained, the interval gradually relaxes back to
   ///   the **5-minute** baseline.
   Future<void> _runAdaptiveDriftCheck() async {
     final hasAnomaly = await _checkDrift();
-    
+
     if (hasAnomaly) {
       _driftCheckInterval = const Duration(seconds: 30);
     } else {
@@ -70,14 +70,14 @@ final class IntegrityMonitor {
         seconds: min(_driftCheckInterval.inSeconds + 30, 300),
       );
     }
-    
+
     _startDriftCheck();
   }
 
-  /// Compares local monotonic uptime delta against wall-clock delta to 
+  /// Compares local monotonic uptime delta against wall-clock delta to
   /// detect tampering.
   ///
-  /// In a healthy system, `ΔUptime` and `ΔWall` should be nearly identical. 
+  /// In a healthy system, `ΔUptime` and `ΔWall` should be nearly identical.
   /// A divergence of >5 seconds is considered a high-integrity violation.
   Future<bool> _checkDrift() async {
     final anchor = _anchor;
@@ -85,12 +85,12 @@ final class IntegrityMonitor {
 
     final uptimeMs = await _clock.uptimeMs();
     final wallMs = DateTime.now().millisecondsSinceEpoch;
-    
+
     final elapsedUptime = uptimeMs - anchor.uptimeMs;
     final elapsedWall = wallMs - anchor.wallMs;
-    
+
     final divergence = (elapsedUptime - elapsedWall).abs();
-    if (divergence > 5000) { 
+    if (divergence > 5000) {
       _emit(IntegrityEvent(
         reason: TamperReason.systemClockJumped,
         detectedAt: DateTime.now().toUtc(),
@@ -143,13 +143,14 @@ final class IntegrityMonitor {
           ));
       }
     } catch (e, st) {
-      debugPrint('[TrustedTime] Critical failure in native event dispatcher: $e\n$st');
+      debugPrint(
+          '[TrustedTime] Critical failure in native event dispatcher: $e\n$st');
     }
   }
 
   /// Verification check for reboots during warm-start (cache restoration).
   ///
-  /// A reboot is confirmed if the current hardware uptime is less than the 
+  /// A reboot is confirmed if the current hardware uptime is less than the
   /// uptime recorded when the cached anchor was established.
   Future<bool> checkRebootOnWarmStart(TrustAnchor previousAnchor) async {
     final currentUptime = await _clock.uptimeMs();
