@@ -4,6 +4,7 @@ import 'time_sample.dart';
 import 'time_interval.dart';
 
 import '../sources/nts_source.dart';
+import '../models.dart';
 
 @immutable
 /// The resolved state of a consensus cycle.
@@ -166,7 +167,7 @@ final class MarzulloEngine {
     // The consensus authentication level is determined by the "weakest link."
     // If even one source in the quorum is unauthenticated, the entire 
     // consensus cannot be considered fully authenticated.
-    var effectiveAuth = NtsAuthLevel.fullyAuthenticated;
+    var effectiveAuth = NtsAuthLevel.verified;
     for (final s in bestSamples) {
       if (s.authLevel.index < effectiveAuth.index) {
         effectiveAuth = s.authLevel;

@@ -1,5 +1,8 @@
+import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'domain/time_source.dart';
 import 'domain/time_interval.dart';
+import 'sources/nts_source.dart';
 
 /// Qualitative grades of consensus integrity.
 enum ConfidenceLevel {
@@ -71,14 +74,14 @@ final class SyncMetrics {
 /// that is resilient to system clock tampering.
 @immutable
 final class TrustAnchor {
-  const TrustAnchor({
+  TrustAnchor({
     required this.networkUtcMs,
     required this.uptimeMs,
     required this.wallMs,
     required this.uncertaintyMs,
     this.authLevel = NtsAuthLevel.none,
     this.confidence = ConfidenceLevel.low,
-    this.syncTime,
+    DateTime? syncTime,
   }) : syncTime = syncTime ?? DateTime.now();
 
   /// The cryptographic security level achieved during synchronization.

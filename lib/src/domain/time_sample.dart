@@ -23,6 +23,9 @@ final class TimeSample {
   /// Group identifier to detect correlated sources (e.g., ASN, provider, or region).
   final String groupId;
 
+  /// The authentication level achieved for this specific sample.
+  final NtsAuthLevel authLevel;
+
   /// Helper to get the UTC time (midpoint of the interval).
   DateTime get utc => DateTime.fromMillisecondsSinceEpoch(interval.midpoint, isUtc: true);
 
