@@ -1,11 +1,15 @@
 import 'dart:async';
 import 'integrity_event.dart';
 import 'trusted_time_estimate.dart';
+import 'sources/nts_source.dart';
+
+TrustedTimeMock? testOverride;
+void setTestOverride(TrustedTimeMock? mock) => testOverride = mock;
 
 /// High-fidelity test double for deterministic temporal testing.
 ///
-/// Provides a fully controllable virtual clock that simulates all aspects
-/// of the TrustedTime API — including trust state, time advancement,
+/// Provides a fully controllable virtual clock that simulates all aspects 
+/// of the TrustedTime API — including trust state, time advancement, 
 /// integrity events, and offline estimation.
 ///
 /// ```dart
@@ -27,17 +31,22 @@ final class TrustedTimeMock {
 
   DateTime _now;
   bool _trusted;
+  NtsAuthLevel _authLevel = NtsAuthLevel.none;
   DateTime? _rebootTime;
   final _controller = StreamController<IntegrityEvent>.broadcast();
 
   DateTime get now => _now;
   bool get isTrusted => _trusted;
+  NtsAuthLevel get authLevel => _authLevel;
   int get nowUnixMs => _now.millisecondsSinceEpoch;
   String get nowIso => _now.toIso8601String();
   Stream<IntegrityEvent> get onIntegrityLost => _controller.stream;
 
   void advanceTime(Duration delta) => _now = _now.add(delta);
   void setNow(DateTime time) => _now = time.toUtc();
+  void setTrusted(bool trusted) => _trusted = trusted;
+  void setAuthLevel(NtsAuthLevel level) => _authLevel = level;
+
   void restoreTrust() {
     _trusted = true;
     _rebootTime = null;
@@ -56,11 +65,6 @@ final class TrustedTimeMock {
     _emit(IntegrityEvent(reason: reason, detectedAt: _now, drift: drift));
   }
 
-  /// Returns an estimated time — aligned with production behavior.
-  ///
-  /// When trusted, returns a high-confidence estimate (matching production
-  /// where an anchor is available). When untrusted after a simulated reboot,
-  /// confidence decays over time just like production.
   TrustedTimeEstimate? nowEstimated() {
     if (_trusted) {
       return TrustedTimeEstimate(

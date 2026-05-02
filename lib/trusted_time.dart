@@ -34,10 +34,12 @@ import 'src/models.dart';
 import 'src/trusted_time_estimate.dart';
 import 'src/trusted_time_impl.dart';
 import 'src/trusted_time_mock.dart';
+import 'src/infra/sync_observer.dart';
+import 'src/sources/nts_source.dart';
 
 export 'src/exceptions.dart';
 export 'src/integrity_event.dart';
-export 'src/models.dart' show TrustedTimeConfig, TrustAnchor;
+export 'src/models.dart' show TrustedTimeConfig, TrustAnchor, ConfidenceLevel, SyncMetrics;
 export 'src/trusted_time_estimate.dart';
 export 'src/trusted_time_mock.dart';
 export 'src/infra/sync_observer.dart';
@@ -45,7 +47,6 @@ export 'src/sources/nts_source.dart' show NtsAuthLevel;
 export 'src/domain/time_sample.dart' show TimeSample;
 export 'src/domain/marzullo_engine.dart' show ConsensusResult;
 export 'src/domain/time_interval.dart' show TimeInterval;
-export 'src/models.dart' show ConfidenceLevel, SyncMetrics;
 
 /// The primary gateway for high-integrity time synchronization and retrieval.
 ///
@@ -81,17 +82,13 @@ abstract final class TrustedTime {
       tz.initializeTimeZones();
       _timezoneInitialized = true;
     }
-
-    // In a testing context, we skip hardware and network orchestration 
-    // to keep tests hermetic and reproducible.
     if (_override != null) return;
-
     await TrustedTimeImpl.init(config);
   }
 
   /// Synchronously returns the current trusted UTC time.
   ///
-  /// This operation is optimized for performance, typically completing in **<1µs**. 
+  /// This operation is optimized for performance, typically completing in **<50µs**. 
   /// It performs a simple arithmetic projection based on the active hardware anchor 
   /// and does not involve any platform channel or I/O overhead.
   ///
@@ -166,16 +163,13 @@ abstract final class TrustedTime {
     bool requireSecure = false,
     ConfidenceLevel minConfidence = ConfidenceLevel.low,
   }) {
-    if (_override != null) return now();
-    final impl = TrustedTimeImpl.instance;
-    
-    if (requireSecure && !impl.isSecure) {
+    if (requireSecure && !isSecure) {
       throw const TrustedTimeSecurityException(
         'NTS-authenticated time is required but unavailable in the current session.'
       );
     }
     
-    final currentConfidence = impl.anchor?.confidence ?? ConfidenceLevel.low;
+    final currentConfidence = confidence;
     if (currentConfidence.index < minConfidence.index) {
       throw TrustedTimeSecurityException(
         'Confidence level ${currentConfidence.name} is below required ${minConfidence.name}.'

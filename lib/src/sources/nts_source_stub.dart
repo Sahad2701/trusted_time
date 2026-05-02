@@ -1,6 +1,5 @@
 import '../domain/time_sample.dart';
 import '../domain/time_source.dart';
-import '../domain/time_interval.dart';
 
 /// NTS time source stub — actual implementation in `nts_source.dart`.
 final class NtsSource implements TimeSource {

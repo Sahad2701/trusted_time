@@ -96,31 +96,45 @@ final class _HttpDate {
   };
 
   static DateTime parse(String header) {
-    final parts = header
-        .replaceAll('-', ' ')
-        .split(RegExp(r'[\s,]+'))
-        .where((p) => p.isNotEmpty && !_weekdays.contains(p))
-        .toList();
+    try {
+      final parts = header
+          .replaceAll('-', ' ')
+          .split(RegExp(r'[\s,]+'))
+          .where((p) => p.isNotEmpty && !_weekdays.contains(p))
+          .toList();
 
-    if (parts.length < 4) {
-      throw FormatException('Unrecognized HTTP-date format: $header');
+      if (parts.length < 4) {
+        throw FormatException('Unrecognized HTTP-date format: $header');
+      }
+
+      final timeParts = parts[3].split(':');
+      if (timeParts.length < 3) {
+        throw FormatException('Unrecognized time format in HTTP-date: $header');
+      }
+
+      final day = int.parse(parts[0]);
+      final monthStr = parts[1];
+      final month = _months[monthStr];
+      if (month == null) throw FormatException('Invalid month: $monthStr');
+      
+      var year = int.parse(parts[2]);
+      if (year < 100) {
+        year += year < 70 ? 2000 : 1900; // RFC 2616 §19.3
+      }
+
+      final hour = int.parse(timeParts[0]);
+      final min = int.parse(timeParts[1]);
+      final sec = int.parse(timeParts[2]);
+
+      if (day < 1 || day > 31) throw const FormatException('Day out of range');
+      if (hour < 0 || hour > 23) throw const FormatException('Hour out of range');
+      if (min < 0 || min > 59) throw const FormatException('Minute out of range');
+      if (sec < 0 || sec > 60) throw const FormatException('Second out of range'); // Allow leap seconds
+
+      return DateTime.utc(year, month, day, hour, min, sec);
+    } catch (e) {
+      if (e is FormatException) rethrow;
+      throw FormatException('Failed to parse HTTP-date: $header ($e)');
     }
-
-    final timeParts = parts[3].split(':');
-    if (timeParts.length < 3) {
-      throw FormatException('Unrecognized time format in HTTP-date: $header');
-    }
-
-    var year = int.parse(parts[2]);
-    if (year < 100) year += 2000;
-
-    return DateTime.utc(
-      year,
-      _months[parts[1]] ?? 1,
-      int.parse(parts[0]),
-      int.parse(timeParts[0]),
-      int.parse(timeParts[1]),
-      int.parse(timeParts[2]),
-    );
   }
 }

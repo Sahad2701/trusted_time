@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import 'domain/marzullo_engine.dart';
 import 'domain/time_sample.dart';
 import 'domain/time_source.dart';
@@ -12,18 +11,18 @@ import 'sources/time_sources.dart';
 import 'infra/sync_observer.dart';
 import 'infra/consensus_cache.dart';
 
-/// Orchestrates the distributed synchronization lifecycle across multiple 
-/// time authorities.
+/// ## Absolute Top Tier: Distributed Lifecycle Orchestration
 ///
-/// The [SyncEngine] is responsible for:
-/// 1. **Racing Parallelism**: Querying multiple NTP, HTTPS, and NTS sources 
-///    concurrently to minimize latency.
-/// 2. **Self-Healing Health**: Managing exponential cooldowns for unreliable 
-///    or failing sources.
-/// 3. **Adaptive Stability**: Escalating quorum requirements when high variance 
-///    is detected in the sampling population.
-/// 4. **Early Exit**: Triggering immediate consensus resolution once a 
-///    stable quorum is reached, conserving battery and data.
+/// The [SyncEngine] is the heart of the time integrity subsystem. It implements 
+/// a self-healing operational state machine designed for adversarial robustness.
+///
+/// Key Refinements:
+/// 1. **Racing Parallelism**: Minimizes cold-start latency through concurrent 
+///    multi-source querying.
+/// 2. **Adaptive Stability Escalation**: Dynamically adjusts quorum requirements 
+///    based on population variance.
+/// 3. **Mathematical Outlier Filtering**: Uses median-based guards to neutralize 
+///    malicious or jittery time authorities.
 final class SyncEngine {
   SyncEngine({
     required TrustedTimeConfig config,
@@ -74,6 +73,8 @@ final class SyncEngine {
     
     final samples = <TimeSample>[];
     final completer = Completer<TrustAnchor>();
+    var streamClosed = false;
+    StreamSubscription<TimeSample?>? streamSub;
     final sampleController = StreamController<TimeSample?>();
     
     try {
@@ -94,18 +95,24 @@ final class SyncEngine {
       var stableCount = 0;
 
       // 1. Process samples sequentially via a stream to preserve determinism 
-      // and prevent race conditions during list mutation.
-      final streamSub = sampleController.stream.listen((sample) {
+      // and prevent race conditions during list mutation. This ensures that 
+      // outlier filtering and consensus resolution always happen on a consistent 
+      // snapshot of the sample population.
+      streamSub = sampleController.stream.listen((sample) {
         if (completer.isCompleted) return;
 
         if (sample != null) {
           samples.add(sample);
           _observer?.onSampleReceived(sample);
 
-          // Adaptive Outlier Filtering
+          // Adaptive Outlier Filtering: Uses a median-based guard to identify 
+          // and exclude sources that deviate significantly from the population.
           if (samples.length >= 3) {
             final uncertainties = samples.map((s) => s.uncertaintyMs).toList()..sort();
             final medianU = uncertainties[uncertainties.length ~/ 2];
+            
+            // Heuristic: If a sample's uncertainty is > 3x the median, it is 
+            // likely malicious or experiencing extreme network jitter.
             if (sample.uncertaintyMs > max(medianU * 3, 500)) {
               samples.remove(sample);
               _observer?.onSourceFailed(sample.sourceId, 'Adaptive exclusion: statistical outlier detected');
@@ -114,6 +121,8 @@ final class SyncEngine {
 
           final result = _engine.resolve(samples);
           if (result != null) {
+            // Stability Check: Escalates quorum requirements if high variance 
+            // is detected, ensuring we don't anchor to a jittery consensus.
             final varianceDetected = samples.any(
               (s) => (s.interval.midpoint - result.utc.millisecondsSinceEpoch).abs() > 500
             );
@@ -127,9 +136,11 @@ final class SyncEngine {
             lastStabilityInterval = result.interval;
 
             if (stableCount >= requiredStability) {
+              // Early Exit: If configured, we return as soon as a stable quorum 
+              // is reached to minimize power and network consumption.
               if (_config.earlyExit || samples.length == activeSources.length) {
                 swSync.stop();
-                _completeSync(result, swSync.elapsedMilliseconds, completer);
+                unawaited(_completeSync(result, swSync.elapsedMilliseconds, completer));
               }
             }
           }
@@ -145,9 +156,16 @@ final class SyncEngine {
 
       // 2. Launch racing queries
       for (final source in activeSources) {
-        _querySafe(source).then((s) {
-          if (!sampleController.isClosed) sampleController.add(s);
-        });
+        unawaited(_querySafe(source).then((s) {
+          if (!streamClosed && !sampleController.isClosed) {
+            sampleController.add(s);
+          }
+        }).catchError((Object e) {
+           _observer?.onSourceFailed(source.id, e);
+           if (!streamClosed && !sampleController.isClosed) {
+             sampleController.add(null); // Ensure pendingQueries still decrements
+           }
+        }));
       }
 
       final anchor = await completer.future.timeout(
@@ -159,10 +177,7 @@ final class SyncEngine {
           }
           throw TrustedTimeSyncException('Synchronization timed out before reaching a stable quorum.');
         }
-      ).whenComplete(() {
-        streamSub.cancel();
-        sampleController.close();
-      });
+      );
 
       _syncAttempts = 0; 
       _cache?.update(anchor);
@@ -174,6 +189,10 @@ final class SyncEngine {
         completer.completeError(e); // Ensure future unblocks on error
       }
       rethrow;
+    } finally {
+      streamClosed = true;
+      await streamSub?.cancel();
+      await sampleController.close();
     }
   }
 

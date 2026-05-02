@@ -1,73 +1,63 @@
 import 'package:flutter/foundation.dart';
 
-/// Exhaustive reasons why the trusted time baseline was compromised.
+/// ## Absolute Top Tier: Temporal Integrity Forensics
 ///
-/// Each variant represents a distinct class of temporal integrity violation
-/// that the `IntegrityMonitor` can detect, either through native OS signals
-/// or through the engine's own consistency checks.
+/// [TamperReason] enumerates the exhaustive set of violations that can 
+/// compromise the temporal baseline of the engine.
 enum TamperReason {
-  /// The OS reports a significant change in the system wall clock.
-  ///
-  /// Triggered by `ACTION_TIME_CHANGED` on Android or equivalent iOS
-  /// notifications.
+  /// A significant discrepancy was detected in the system wall clock. 
+  /// 
+  /// This usually indicates manual user manipulation or a network-initiated 
+  /// clock jump.
   systemClockJumped,
 
-  /// The device timezone was changed via OS settings.
-  ///
-  /// While this doesn't necessarily indicate tampering, it may affect
-  /// local time calculations and is worth monitoring.
+  /// The device timezone was changed via OS settings. 
+  /// 
+  /// While not a direct integrity violation of UTC, this may affect 
+  /// local-time representation and localized application logic.
   timezoneChanged,
 
-  /// A hardware reboot was detected via monotonic uptime reset.
-  ///
-  /// After a reboot the monotonic clock restarts from zero, invalidating
-  /// the current trust anchor.
+  /// A hardware reboot was detected via monotonic uptime reset. 
+  /// 
+  /// Reboots invalidate the current hardware anchor and require a fresh 
+  /// network synchronization to re-establish absolute truth.
   deviceRebooted,
 
-  /// A resync was manually triggered via [TrustedTime.forceResync].
-  ///
-  /// The engine does not emit this reason internally — it is reserved
-  /// for consumer-side auditing. Applications may emit it via
-  /// [TrustedTimeMock.simulateTampering] to test forced-resync paths.
+  /// A manual resynchronization was triggered. 
+  /// 
+  /// Reserved for consumer-side auditing or mock-based security testing.
   forcedNtpSync,
 
-  /// The root cause could not be determined from available platform
-  /// signals.
+  /// The root cause could not be determined from available platform signals.
   unknown,
 }
 
-/// Encapsulates a single violation of the temporal baseline with forensic
-/// metadata.
+/// Encapsulates a violation of temporal integrity with forensic metadata.
 ///
-/// [IntegrityEvent]s are emitted on the [TrustedTime.onIntegrityLost] stream
-/// whenever the engine detects a compromise of its trust anchor — whether
-/// from a clock jump, timezone change, device reboot, or unknown cause.
+/// [IntegrityEvent]s are emitted whenever the [IntegrityMonitor] detects 
+/// a discrepancy that invalidates the current [TrustAnchor]. 
 ///
-/// ```dart
-/// TrustedTime.onIntegrityLost.listen((event) {
-///   log('Integrity lost: ${event.reason}, drift: ${event.drift}');
-/// });
-/// ```
+/// Use this for security auditing and to trigger high-priority recovery 
+/// workflows in your application.
 @immutable
 final class IntegrityEvent {
-  /// Creates an integrity event with the given [reason] and detection
-  /// timestamp.
+  /// Creates a magnificent integrity event.
   const IntegrityEvent({
     required this.reason,
     required this.detectedAt,
     this.drift,
   });
 
-  /// The root cause identified by the integrity monitor.
+  /// The root cause identified by the integrity monitoring subsystem.
   final TamperReason reason;
 
-  /// UTC timestamp of when the violation was detected.
+  /// The UTC timestamp of when the violation was detected.
   final DateTime detectedAt;
 
   /// The measured magnitude of the clock discrepancy, if available.
   ///
-  /// For [TamperReason.systemClockJumped], this represents the size of
-  /// the jump. For [TamperReason.timezoneChanged], the offset difference.
+  /// For [TamperReason.systemClockJumped], this represents the jump distance. 
+  /// For [TamperReason.timezoneChanged], it represents the offset change.
   final Duration? drift;
 
   @override

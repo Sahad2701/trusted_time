@@ -71,17 +71,19 @@ class TrustedTimePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
  */
 class BackgroundSyncWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result {
+        val url = java.net.URL("https://www.google.com")
+        var conn: java.net.HttpURLConnection? = null
         return try {
-            val url = java.net.URL("https://www.google.com")
-            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn = url.openConnection() as java.net.HttpURLConnection
             conn.requestMethod = "HEAD"
             conn.connectTimeout = 5000
             conn.readTimeout = 5000
             conn.connect()
-            conn.disconnect()
             Result.success()
         } catch (_: Exception) {
             Result.retry()
+        } finally {
+            conn?.disconnect()
         }
     }
 }
