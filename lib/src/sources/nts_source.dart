@@ -11,15 +11,15 @@ import '../models.dart';
 
 /// Authentication levels for NTS queries.
 enum NtsAuthLevel {
-  /// No authentication performed.
+  /// No authentication performed (Plain NTP/HTTPS).
   none,
 
-  /// NTS-KE handshake successful, but AEAD verification is currently
-  /// advisory/simulated due to Dart SDK limitations (no TLS exporters).
-  negotiatedAdvisory,
+  /// NTS-KE handshake successful, but AEAD verification is currently 
+  /// advisory/simulated due to Dart SDK limitations (lack of TLS exporters).
+  advisory,
 
-  /// Full cryptographic authentication (Reserved for future native/FFI impl).
-  fullyAuthenticated,
+  /// Full cryptographic authentication (Reserved for future native/FFI implementation).
+  verified,
 }
 
 /// Pure-Dart NTS (Network Time Security, RFC 8915) time source.
@@ -109,7 +109,7 @@ final class NtsSource implements TimeSource {
       ),
       sourceId: id,
       groupId: groupId,
-      authLevel: NtsAuthLevel.negotiatedAdvisory,
+      authLevel: NtsAuthLevel.advisory,
     );
   }
 

@@ -75,7 +75,7 @@ final class TrustedTimeImpl {
   TrustAnchor? get anchor => _anchor;
 
   /// Whether the current trust anchor is cryptographically secure.
-  bool get isSecure => _anchor?.authLevel == NtsAuthLevel.fullyAuthenticated;
+  bool get isSecure => _anchor?.authLevel == NtsAuthLevel.verified;
 
   /// The specific authentication level of the current time estimate.
   NtsAuthLevel get authLevel => _anchor?.authLevel ?? NtsAuthLevel.none;
@@ -292,5 +292,10 @@ class _ProxySyncObserver implements SyncObserver {
   @override
   void onSyncFailed(Object error) {
     for (final o in _getObservers()) o.onSyncFailed(error);
+  }
+
+  @override
+  void onMetricsReported(SyncMetrics metrics) {
+    for (final o in _getObservers()) o.onMetricsReported(metrics);
   }
 }

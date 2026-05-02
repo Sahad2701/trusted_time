@@ -1,5 +1,6 @@
 import '../domain/time_sample.dart';
 import '../domain/marzullo_engine.dart';
+import '../models.dart';
 
 /// Observer for synchronization events.
 /// Use this for telemetry and monitoring.
@@ -18,4 +19,7 @@ abstract interface class SyncObserver {
 
   /// Called when a synchronization cycle fails.
   void onSyncFailed(Object error);
+
+  /// Called when machine-readable metrics are generated for a successful cycle.
+  void onMetricsReported(SyncMetrics metrics);
 }
