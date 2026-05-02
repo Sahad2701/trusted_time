@@ -47,3 +47,7 @@ test_results.txt
 
 # Local workspace settings
 .dart_sys_cache
+
+# Example build artifacts
+example/ios/Flutter/*.xcconfig
+example/ios/Flutter/flutter_export_environment.sh
