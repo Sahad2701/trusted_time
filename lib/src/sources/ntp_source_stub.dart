@@ -14,5 +14,6 @@ final class NtpSource implements TimeSource {
   String get groupId => _host;
 
   @override
-  Future<TimeSample> getTime() => throw UnimplementedError('NTP requires dart:io');
+  Future<TimeSample> getTime() =>
+      throw UnimplementedError('NTP requires dart:io');
 }

@@ -12,7 +12,8 @@ class MockMonotonicClock implements MonotonicClock {
 }
 
 class RaceConditionSource implements TimeSource {
-  RaceConditionSource(this.id, this.delay, this.utcMs, [this.groupId = 'test-group']);
+  RaceConditionSource(this.id, this.delay, this.utcMs,
+      [this.groupId = 'test-group']);
   @override
   final String id;
   final Duration delay;
@@ -47,10 +48,15 @@ void main() {
       );
     });
 
-    test('resolves correctly when multiple sources respond in the same microtask', () async {
-      final source1 = RaceConditionSource('s1', const Duration(milliseconds: 50), 1000000, 'g1');
-      final source2 = RaceConditionSource('s2', const Duration(milliseconds: 50), 1000000, 'g2');
-      final source3 = RaceConditionSource('s3', const Duration(milliseconds: 50), 1000000, 'g3');
+    test(
+        'resolves correctly when multiple sources respond in the same microtask',
+        () async {
+      final source1 = RaceConditionSource(
+          's1', const Duration(milliseconds: 50), 1000000, 'g1');
+      final source2 = RaceConditionSource(
+          's2', const Duration(milliseconds: 50), 1000000, 'g2');
+      final source3 = RaceConditionSource(
+          's3', const Duration(milliseconds: 50), 1000000, 'g3');
 
       final engine = SyncEngine(
         config: config.copyWith(additionalSources: [source1, source2, source3]),
@@ -61,10 +67,15 @@ void main() {
       expect(anchor.networkUtcMs, inInclusiveRange(999990, 1000020));
     });
 
-    test('handles stream closure during late query completion without StateError', () async {
-      final source1 = RaceConditionSource('s1', const Duration(milliseconds: 10), 1000000, 'g1');
-      final source2 = RaceConditionSource('s2', const Duration(milliseconds: 20), 1000000, 'g2');
-      final source3 = RaceConditionSource('s3', const Duration(milliseconds: 100), 1000000, 'g3');
+    test(
+        'handles stream closure during late query completion without StateError',
+        () async {
+      final source1 = RaceConditionSource(
+          's1', const Duration(milliseconds: 10), 1000000, 'g1');
+      final source2 = RaceConditionSource(
+          's2', const Duration(milliseconds: 20), 1000000, 'g2');
+      final source3 = RaceConditionSource(
+          's3', const Duration(milliseconds: 100), 1000000, 'g3');
 
       final engine = SyncEngine(
         config: config.copyWith(
@@ -81,12 +92,17 @@ void main() {
       await Future.delayed(const Duration(milliseconds: 150));
     });
 
-    test('outlier filtering is deterministic across simultaneous arrivals', () async {
+    test('outlier filtering is deterministic across simultaneous arrivals',
+        () async {
       // 4 sources to ensure stableCount >= 2 after filtering 1 outlier
-      final s1 = RaceConditionSource('s1', const Duration(milliseconds: 50), 1000000, 'g1');
-      final s2 = RaceConditionSource('s2', const Duration(milliseconds: 50), 1000002, 'g2');
-      final s3 = RaceConditionSource('s3', const Duration(milliseconds: 50), 1000001, 'g3');
-      final s4 = RaceConditionSource('s4', const Duration(milliseconds: 50), 2000000, 'g4');
+      final s1 = RaceConditionSource(
+          's1', const Duration(milliseconds: 50), 1000000, 'g1');
+      final s2 = RaceConditionSource(
+          's2', const Duration(milliseconds: 50), 1000002, 'g2');
+      final s3 = RaceConditionSource(
+          's3', const Duration(milliseconds: 50), 1000001, 'g3');
+      final s4 = RaceConditionSource(
+          's4', const Duration(milliseconds: 50), 2000000, 'g4');
 
       final engine = SyncEngine(
         config: config.copyWith(

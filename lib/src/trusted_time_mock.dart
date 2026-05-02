@@ -1,15 +1,13 @@
 import 'dart:async';
-import 'integrity_event.dart';
-import 'trusted_time_estimate.dart';
-import 'sources/nts_source.dart';
+import '../trusted_time.dart';
 
 TrustedTimeMock? testOverride;
 void setTestOverride(TrustedTimeMock? mock) => testOverride = mock;
 
 /// High-fidelity test double for deterministic temporal testing.
 ///
-/// Provides a fully controllable virtual clock that simulates all aspects 
-/// of the TrustedTime API — including trust state, time advancement, 
+/// Provides a fully controllable virtual clock that simulates all aspects
+/// of the TrustedTime API — including trust state, time advancement,
 /// integrity events, and offline estimation.
 ///
 /// ```dart

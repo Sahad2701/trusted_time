@@ -4,24 +4,24 @@ import '../models.dart';
 
 /// ## Absolute Top Tier: Telemetry and Observability
 ///
-/// [SyncObserver] provides a high-fidelity interface for monitoring the 
+/// [SyncObserver] provides a high-fidelity interface for monitoring the
 /// internal synchronization lifecycle of the engine.
 ///
-/// Implement this interface to capture diagnostic metrics, audit security 
-/// events, or provide real-time feedback to the end-user during 
+/// Implement this interface to capture diagnostic metrics, audit security
+/// events, or provide real-time feedback to the end-user during
 /// synchronization cycles.
 abstract interface class SyncObserver {
   /// Called when a synchronization cycle is initiated by the engine.
   void onSyncStarted();
 
-  /// Called when a raw [TimeSample] is successfully retrieved from a 
+  /// Called when a raw [TimeSample] is successfully retrieved from a
   /// remote time authority.
   void onSampleReceived(TimeSample sample);
 
   /// Called when a specific source query fails (e.g., timeout or network error).
   void onSourceFailed(String sourceId, Object error);
 
-  /// Called when the [MarzulloEngine] successfully resolves a new consensus 
+  /// Called when the [MarzulloEngine] successfully resolves a new consensus
   /// from the available samples.
   void onConsensusReached(ConsensusResult result);
 

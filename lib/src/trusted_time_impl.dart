@@ -8,7 +8,7 @@ import 'integrity_event.dart';
 import 'integrity_monitor.dart';
 import 'monotonic_clock.dart';
 import 'sync_engine.dart';
-import 'sources/nts_source.dart';
+import 'sources/nts_auth_level.dart';
 import 'infra/sync_observer.dart';
 import 'infra/consensus_cache.dart';
 import 'domain/time_sample.dart';
@@ -18,15 +18,15 @@ import 'trusted_time_mock.dart';
 
 /// ## Absolute Top Tier: High-Integrity Implementation Engine
 ///
-/// [TrustedTimeImpl] manages the end-to-end lifecycle of temporal trust, 
+/// [TrustedTimeImpl] manages the end-to-end lifecycle of temporal trust,
 /// from hardware monotonic anchoring to network-verified consensus.
 ///
 /// Features:
-/// * **Hardware-Anchored UTC**: Projects time using the device oscillator to 
+/// * **Hardware-Anchored UTC**: Projects time using the device oscillator to
 ///   thwart wall-clock manipulation.
-/// * **Closed-Loop Feedback**: Automatically recovers trust upon detection of 
+/// * **Closed-Loop Feedback**: Automatically recovers trust upon detection of
 ///   monotonic anomalies or system reboots.
-/// * **Hermetic Testability**: Supports high-fidelity mock injection for 
+/// * **Hermetic Testability**: Supports high-fidelity mock injection for
 ///   deterministic security auditing.
 final class TrustedTimeImpl {
   TrustedTimeImpl._({
@@ -37,15 +37,14 @@ final class TrustedTimeImpl {
         _store = store,
         _cache = ConsensusCache(),
         _syncClock = SyncClock(),
-        _monitor = IntegrityMonitor(clock: clock),
-        _syncEngine = SyncEngine(
-          config: config,
-          clock: clock,
-          observer: _ProxySyncObserver(() => _instance!._observers),
-          cache: ConsensusCache(), // Replaced in init to share
-        ) {
-    // Shared cache between impl and engine for state propagation.
-    (_syncEngine as dynamic)._cache = _cache; 
+        _monitor = IntegrityMonitor(clock: clock) {
+    _syncEngine = SyncEngine(
+      config: config,
+      clock: clock,
+      observer: _ProxySyncObserver(() => _instance!._observers),
+      cache:
+          _cache, // Shared cache between impl and engine for state propagation
+    );
   }
 
   static TrustedTimeImpl? _instance;
@@ -70,7 +69,7 @@ final class TrustedTimeImpl {
 
   final TrustedTimeConfig _config;
   final AnchorStore _store;
-  final SyncEngine _syncEngine;
+  late final SyncEngine _syncEngine;
   final IntegrityMonitor _monitor;
   final ConsensusCache _cache;
   final SyncClock _syncClock;
@@ -132,12 +131,16 @@ final class TrustedTimeImpl {
       return null;
     }
 
-    final currentTime = testOverride != null ? testOverride!.now : DateTime.now();
+    final currentTime =
+        testOverride != null ? testOverride!.now : DateTime.now();
     final wallElapsed = Duration(
       milliseconds: currentTime.millisecondsSinceEpoch - baseWallMs!,
     );
-    final confidence = (1.0 - wallElapsed.inMinutes.abs() / 4320.0).clamp(0.0, 1.0);
-    final errorMs = (wallElapsed.inMilliseconds.abs() * _config.oscillatorDriftFactor).round();
+    final confidence =
+        (1.0 - wallElapsed.inMinutes.abs() / 4320.0).clamp(0.0, 1.0);
+    final errorMs =
+        (wallElapsed.inMilliseconds.abs() * _config.oscillatorDriftFactor)
+            .round();
 
     return TrustedTimeEstimate(
       estimatedTime: DateTime.fromMillisecondsSinceEpoch(
@@ -150,14 +153,23 @@ final class TrustedTimeImpl {
   }
 
   /// Forces an immediate network synchronization cycle, purging the current anchor.
-  /// 
-  /// This is used during recovery phases or when the application level requires 
+  ///
+  /// This is used during recovery phases or when the application level requires
   /// a fresh quorum (e.g. before a high-value financial transaction).
   Future<void> forceResync() async {
     _trusted = false;
     await _performSync();
   }
 
+  /// Enables background synchronization to keep trust anchors fresh.
+  ///
+  /// **Android Limitation**: Due to platform constraints, Android background sync
+  /// performs connectivity checks but does not invoke the Dart-side sync immediately.
+  /// Trust anchors are refreshed on the next application foreground launch.
+  /// This limitation will be addressed in a future release using headless FlutterEngine.
+  ///
+  /// **iOS**: Full background sync support with immediate anchor refresh.
+  /// **Desktop**: Uses platform timers for immediate background refresh.
   Future<void> enableBackgroundSync(Duration interval) async {
     if (kIsWeb) return;
     if (defaultTargetPlatform == TargetPlatform.android ||
@@ -207,9 +219,9 @@ final class TrustedTimeImpl {
   bool get supportsSecureTime => _config.ntsServers.isNotEmpty;
 
   /// Initializes the integrity monitoring loop.
-  /// 
-  /// We proactively listen for system-level anomalies (clock jumps, reboots). 
-  /// If an anomaly is detected, we immediately invalidate the cache and 
+  ///
+  /// We proactively listen for system-level anomalies (clock jumps, reboots).
+  /// If an anomaly is detected, we immediately invalidate the cache and
   /// enter a high-priority recovery cycle to re-establish a trust anchor.
   void _listenForIntegrityEvents() {
     _integritySub?.cancel();
@@ -217,13 +229,13 @@ final class TrustedTimeImpl {
       if (event.reason == TamperReason.systemClockJumped ||
           event.reason == TamperReason.deviceRebooted) {
         _trusted = false;
-        
-        // Critical: Purge the cache on anomaly. We do not want to re-anchor 
+
+        // Critical: Purge the cache on anomaly. We do not want to re-anchor
         // to a potentially poisoned or stale consensus result.
-        _cache.clear(); 
-        
+        _cache.clear();
+
         // Trigger an immediate background sync to recover trust.
-        unawaited(_performSync()); 
+        unawaited(_performSync());
       }
     });
   }

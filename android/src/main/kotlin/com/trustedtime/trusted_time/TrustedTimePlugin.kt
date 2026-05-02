@@ -63,9 +63,13 @@ class TrustedTimePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
 
 /**
  * Background worker that performs a lightweight HTTPS HEAD check to validate
- * connectivity and confirm the device can reach time servers. The actual clock
- * drift correction happens on the Dart side during the next foreground sync.
- *
+ * connectivity and confirm the device can reach time servers.
+ * 
+ * **ANDROID LIMITATION**: This worker only performs connectivity validation.
+ * The actual clock drift correction and anchor refresh happens on the Dart side
+ * during the next application foreground launch. This is a known limitation
+ * that will be addressed in a future release using headless FlutterEngine.
+ * 
  * The worker's primary purpose is to keep the WorkManager schedule alive and
  * ensure network availability for the Dart engine's next sync cycle.
  */

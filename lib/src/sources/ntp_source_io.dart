@@ -13,7 +13,14 @@ final class NtpSource implements TimeSource {
   String get id => '${TimeSource.prefixNtp}$_host';
 
   @override
-  String get groupId => _host.split('.').reversed.skip(1).take(2).toList().reversed.join('.') 
+  String get groupId => _host
+      .split('.')
+      .reversed
+      .skip(1)
+      .take(2)
+      .toList()
+      .reversed
+      .join('.')
       .replaceFirst('pool.ntp.org', 'ntp-pool'); // Basic group heuristic
 
   @override
@@ -24,10 +31,10 @@ final class NtpSource implements TimeSource {
       timeout: const Duration(seconds: 10),
     );
     sw.stop();
-    
+
     final utc = DateTime.now().toUtc().add(Duration(milliseconds: offset));
     final u = sw.elapsedMilliseconds ~/ 2;
-    
+
     return TimeSample(
       interval: TimeInterval(
         startMs: utc.millisecondsSinceEpoch - u,

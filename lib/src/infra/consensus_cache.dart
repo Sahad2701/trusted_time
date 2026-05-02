@@ -20,13 +20,13 @@ final class ConsensusCache {
   /// Retrieves the last anchor if it's still within TTL.
   TrustAnchor? get() {
     if (_lastAnchor == null || _cachedAt == null) return null;
-    
+
     final age = DateTime.now().difference(_cachedAt!);
     if (age > ttl) {
       _lastAnchor = null;
       return null;
     }
-    
+
     return _lastAnchor;
   }
 

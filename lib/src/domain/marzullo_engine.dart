@@ -1,15 +1,12 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
-import 'time_sample.dart';
-import 'time_interval.dart';
-
-import '../sources/nts_source.dart';
-import '../models.dart';
+import '../../trusted_time.dart';
 
 @immutable
+
 /// The resolved state of a consensus cycle.
 ///
-/// Encapsulates the verified UTC time, the calculated precision (uncertainty), 
+/// Encapsulates the verified UTC time, the calculated precision (uncertainty),
 /// and the metadata required to judge the integrity of the consensus.
 @immutable
 final class ConsensusResult {
@@ -47,18 +44,18 @@ final class ConsensusResult {
 
 /// A high-integrity implementation of Marzullo's algorithm for time consensus.
 ///
-/// This engine resolves a single "truth" from multiple, potentially noisy or 
-/// malicious time authorities. It treats each time sample as an interval 
-/// `[T - error, T + error]` and searches for the intersection that contains 
+/// This engine resolves a single "truth" from multiple, potentially noisy or
+/// malicious time authorities. It treats each time sample as an interval
+/// `[T - error, T + error]` and searches for the intersection that contains
 /// the most probable true time.
 ///
 /// ## Key Refinements
 ///
-/// * **Group-Aware Diversity**: Prevents "correlated failures" where a single 
+/// * **Group-Aware Diversity**: Prevents "correlated failures" where a single
 ///   provider (e.g. a specific data center or ASN) dominates the consensus.
-/// * **Closed-Interval Tie-breaking**: Strictly enforces that endpoint boundaries 
+/// * **Closed-Interval Tie-breaking**: Strictly enforces that endpoint boundaries
 ///   are inclusive, ensuring stable overlap detection even with identical timestamps.
-/// * **Graduated Trust**: Automatically grades the resulting consensus as 
+/// * **Graduated Trust**: Automatically grades the resulting consensus as
 ///   low, medium, or high confidence based on depth and diversity.
 final class MarzulloEngine {
   const MarzulloEngine({
@@ -67,32 +64,34 @@ final class MarzulloEngine {
     this.minGroupCount = 2,
   });
 
-  /// The minimum percentage of responding sources that must participate in 
+  /// The minimum percentage of responding sources that must participate in
   /// the consensus for it to be considered valid.
   final double minQuorumRatio;
 
-  /// Hard exclusion threshold. Sources with uncertainty exceeding this 
+  /// Hard exclusion threshold. Sources with uncertainty exceeding this
   /// are discarded to prevent "consensus bloating."
   final int maxAllowedUncertaintyMs;
 
-  /// Minimum number of distinct administrative groups required to achieve 
+  /// Minimum number of distinct administrative groups required to achieve
   /// high-confidence status.
   final int minGroupCount;
 
   /// Orchestrates the consensus resolution process across a set of samples.
   ///
-  /// Returns a [ConsensusResult] if a quorum is achieved that satisfies 
-  /// the [minQuorumRatio] and [minGroupCount] constraints. Returns `null` 
+  /// Returns a [ConsensusResult] if a quorum is achieved that satisfies
+  /// the [minQuorumRatio] and [minGroupCount] constraints. Returns `null`
   /// if the samples are too divergent or the population is insufficient.
   ConsensusResult? resolve(List<TimeSample> samples) {
-    // We filter out "noisy" sources early. Inclusion of high-uncertainty 
-    // sources artificially increases the consensus width without adding 
+    // We filter out "noisy" sources early. Inclusion of high-uncertainty
+    // sources artificially increases the consensus width without adding
     // valuable information.
-    final validSamples = samples.where((s) => s.uncertaintyMs <= maxAllowedUncertaintyMs).toList();
+    final validSamples = samples
+        .where((s) => s.uncertaintyMs <= maxAllowedUncertaintyMs)
+        .toList();
 
     final totalSources = validSamples.length;
     final requiredQuorum = (totalSources * minQuorumRatio).ceil();
-    
+
     if (totalSources == 0 || requiredQuorum == 0) return null;
 
     final endpoints = <_Endpoint>[];
@@ -102,9 +101,9 @@ final class MarzulloEngine {
         ..add(_Endpoint(s.interval.endMs, _EndpointType.upper, s));
     }
 
-    // Sort endpoints to find the densest overlap. 
-    // In Marzullo's algorithm, for closed intervals, an 'upper' endpoint 
-    // at time T should be processed before a 'lower' endpoint at time T 
+    // Sort endpoints to find the densest overlap.
+    // In Marzullo's algorithm, for closed intervals, an 'upper' endpoint
+    // at time T should be processed before a 'lower' endpoint at time T
     // to correctly count the depth at the point of overlap.
     endpoints.sort((a, b) {
       final cmp = a.timeMs.compareTo(b.timeMs);
@@ -116,7 +115,7 @@ final class MarzulloEngine {
     int? bestStart;
     int? bestEnd;
     var currentOverlap = 0;
-    
+
     final activeSamples = <TimeSample>{};
     final bestSamples = <TimeSample>{};
 
@@ -124,7 +123,7 @@ final class MarzulloEngine {
       if (ep.type == _EndpointType.lower) {
         currentOverlap++;
         activeSamples.add(ep.sample);
-        
+
         if (currentOverlap > bestOverlap) {
           bestOverlap = currentOverlap;
           bestStart = ep.timeMs;
@@ -134,7 +133,9 @@ final class MarzulloEngine {
             ..addAll(activeSamples);
         }
       } else {
-        if (currentOverlap == bestOverlap && bestStart != null && bestEnd == null) {
+        if (currentOverlap == bestOverlap &&
+            bestStart != null &&
+            bestEnd == null) {
           bestEnd = ep.timeMs;
         }
         activeSamples.remove(ep.sample);
@@ -149,9 +150,9 @@ final class MarzulloEngine {
 
     final uniqueGroups = bestSamples.map((s) => s.groupId).toSet();
     final groupCount = uniqueGroups.length;
-    
-    // We grade confidence based on both the depth of the quorum and the 
-    // diversity of its providers. A high-confidence result requires 
+
+    // We grade confidence based on both the depth of the quorum and the
+    // diversity of its providers. A high-confidence result requires
     // exceeding the minimum quorum and meeting diversity requirements.
     var confidence = ConfidenceLevel.low;
     if (groupCount >= minGroupCount) {
@@ -165,7 +166,7 @@ final class MarzulloEngine {
     final uncertaintyMs = (bestEnd - bestStart) ~/ 2;
 
     // The consensus authentication level is determined by the "weakest link."
-    // If even one source in the quorum is unauthenticated, the entire 
+    // If even one source in the quorum is unauthenticated, the entire
     // consensus cannot be considered fully authenticated.
     var effectiveAuth = NtsAuthLevel.verified;
     for (final s in bestSamples) {

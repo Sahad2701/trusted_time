@@ -1,40 +1,47 @@
 import 'package:flutter/foundation.dart';
 import 'domain/time_source.dart';
 import 'exceptions.dart';
-import 'sources/nts_source.dart';
+import 'sources/nts_auth_level.dart';
 
 /// Qualitative grades of consensus integrity.
 ///
-/// These levels represent the engine's confidence in the accuracy of the current 
+/// These levels represent the engine's confidence in the accuracy of the current
 /// [TrustAnchor] based on population depth, provider diversity, and variance.
 enum ConfidenceLevel {
-  /// The engine has not yet reached a stable quorum, or the current state 
+  /// The engine has not yet reached a stable quorum, or the current state
   /// has been explicitly invalidated (e.g., after an integrity violation).
   none,
 
-  /// A consensus has been achieved, but the population depth or provider 
+  /// A consensus has been achieved, but the population depth or provider
   /// diversity is minimal (e.g., only two sources from the same network group).
   low,
 
-  /// A stable quorum has been reached with adequate provider diversity 
+  /// A stable quorum has been reached with adequate provider diversity
   /// (multiple administrative groups/protocols).
   medium,
 
-  /// A high-integrity quorum has been reached with broad diversity across 
+  /// A high-integrity quorum has been reached with broad diversity across
   /// protocols (NTP, HTTPS, NTS) and extremely low population variance.
   high,
 }
 
 @immutable
+
 /// Configuration parameters for the [TrustedTime] engine.
 ///
-/// This class defines the behavioral policy of the engine, including quorum 
+/// This class defines the behavioral policy of the engine, including quorum
 /// requirements, security thresholds, and background synchronization intervals.
 final class TrustedTimeConfig {
   /// Creates a new configuration instance with sensible production defaults.
   const TrustedTimeConfig({
     this.ntpServers = const ['pool.ntp.org', 'time.google.com'],
-    this.httpsSources = const ['https://www.google.com', 'https://www.cloudflare.com'],
+    this.httpsSources = const [
+      'https://www.google.com',
+      'https://www.cloudflare.com',
+      'https://time.cloudflare.com',
+      'https://www.apple.com',
+      'https://www.microsoft.com'
+    ],
     this.ntsServers = const ['time.cloudflare.com'],
     this.ntsPort = 4460,
     this.additionalSources = const [],
@@ -50,68 +57,95 @@ final class TrustedTimeConfig {
     this.backgroundSyncInterval,
   });
 
+  /// Creates a Web-compatible configuration that only uses HTTPS sources.
+  ///
+  /// Web platforms don't support UDP sockets (required for NTP/NTS), so this
+  /// configuration excludes NTP and NTS servers, relying solely on HTTP/HTTPS
+  /// endpoints that work in browsers and WASM environments.
+  factory TrustedTimeConfig.web() {
+    return const TrustedTimeConfig(
+      ntpServers: [], // No UDP support on Web
+      ntsServers: [], // No TCP support on Web
+      httpsSources: [
+        'https://www.google.com',
+        'https://www.cloudflare.com',
+        'https://time.cloudflare.com',
+        'https://www.apple.com',
+        'https://www.microsoft.com',
+        'https://api.github.com',
+        'https://httpbin.org',
+        'https://www.wikipedia.org',
+      ],
+      minimumQuorum: 2,
+      minGroupCount: 2,
+      maxLatency: Duration(seconds: 5),
+      refreshInterval: Duration(hours: 1),
+    );
+  }
+
   /// The list of authoritative NTP server hostnames used for synchronization.
   final List<String> ntpServers;
 
   /// The list of HTTP/HTTPS endpoints used to extract UTC time from the `Date` header.
   final List<String> httpsSources;
 
-  /// The list of Network Time Security (NTS) servers used for cryptographically 
+  /// The list of Network Time Security (NTS) servers used for cryptographically
   /// authenticated synchronization.
   final List<String> ntsServers;
 
-  /// The TCP port used for the NTS Key Exchange (NTS-KE) handshake. 
+  /// The TCP port used for the NTS Key Exchange (NTS-KE) handshake.
   /// Defaults to 4460 as per RFC 8915.
   final int ntsPort;
 
   /// Custom [TimeSource] implementations provided by the application developer.
   final List<TimeSource> additionalSources;
 
-  /// The minimum fraction of responding sources (0.0 to 1.0) that must overlap 
+  /// The minimum fraction of responding sources (0.0 to 1.0) that must overlap
   /// for a consensus to be considered valid.
   final double minQuorumRatio;
 
   /// The absolute minimum number of agreeing sources required to establish trust.
   final int minimumQuorum;
 
-  /// The minimum number of distinct administrative groups (e.g., different ASNs 
+  /// The minimum number of distinct administrative groups (e.g., different ASNs
   /// or protocols) required to reach higher confidence levels.
   final int minGroupCount;
 
-  /// The maximum amount of time the engine will wait for a response from any 
+  /// The maximum amount of time the engine will wait for a response from any
   /// single source before it is discarded.
   final Duration maxLatency;
 
-  /// The frequency at which the engine enters a proactive synchronization cycle 
+  /// The frequency at which the engine enters a proactive synchronization cycle
   /// while the app is in the foreground.
   final Duration refreshInterval;
 
-  /// The hard threshold for precision. If a consensus result has an uncertainty 
+  /// The hard threshold for precision. If a consensus result has an uncertainty
   /// (width/2) exceeding this value, it is discarded.
   final int maxAllowedUncertaintyMs;
 
-  /// Whether to persist the last verified [TrustAnchor] to secure storage. 
+  /// Whether to persist the last verified [TrustAnchor] to secure storage.
   /// Allows for faster "warm-start" trust establishment on app restart.
   final bool persistState;
 
-  /// If true, the engine will stop querying sources as soon as a stable quorum 
+  /// If true, the engine will stop querying sources as soon as a stable quorum
   /// is reached, conserving network and battery resources.
   final bool earlyExit;
 
-  /// The assumed drift rate of the device oscillator in seconds per second. 
+  /// The assumed drift rate of the device oscillator in seconds per second.
   /// Used for offline confidence degradation (0.00005 ≈ 50ppm).
   final double oscillatorDriftFactor;
 
-  /// The interval at which the engine should perform a background synchronization. 
+  /// The interval at which the engine should perform a background synchronization.
   /// If null, background synchronization is disabled.
   final Duration? backgroundSyncInterval;
 }
 
 @immutable
+
 /// A hardware-anchored snapshot representing a verified network consensus.
 ///
-/// This model acts as the "source of truth" for the engine. It links the 
-/// network-verified UTC time to the device's hardware monotonic clock at a 
+/// This model acts as the "source of truth" for the engine. It links the
+/// network-verified UTC time to the device's hardware monotonic clock at a
 /// specific moment in time.
 final class TrustAnchor {
   /// Internal constructor for creating a new trust anchor.
@@ -129,15 +163,16 @@ final class TrustAnchor {
     try {
       final authIdx = json['authLevel'] as int? ?? 0;
       final confIdx = json['confidence'] as int? ?? 0;
-      
+
       // CRITICAL-6: Prevent RangeError or malformed state during deserialization.
       final authLevel = (authIdx >= 0 && authIdx < NtsAuthLevel.values.length)
           ? NtsAuthLevel.values[authIdx]
           : NtsAuthLevel.none;
-          
-      final confidence = (confIdx >= 0 && confIdx < ConfidenceLevel.values.length)
-          ? ConfidenceLevel.values[confIdx]
-          : ConfidenceLevel.none;
+
+      final confidence =
+          (confIdx >= 0 && confIdx < ConfidenceLevel.values.length)
+              ? ConfidenceLevel.values[confIdx]
+              : ConfidenceLevel.none;
 
       return TrustAnchor(
         networkUtcMs: json['networkUtcMs'] as int,
@@ -176,10 +211,14 @@ final class TrustAnchor {
   /// A normalized score (0.0 to 1.0) representing the reliability of this anchor.
   double get confidenceScore {
     switch (confidence) {
-      case ConfidenceLevel.none: return 0.0;
-      case ConfidenceLevel.low: return 0.3;
-      case ConfidenceLevel.medium: return 0.7;
-      case ConfidenceLevel.high: return 1.0;
+      case ConfidenceLevel.none:
+        return 0.0;
+      case ConfidenceLevel.low:
+        return 0.3;
+      case ConfidenceLevel.medium:
+        return 0.7;
+      case ConfidenceLevel.high:
+        return 1.0;
     }
   }
 
@@ -195,6 +234,7 @@ final class TrustAnchor {
 }
 
 @immutable
+
 /// Diagnostic metrics captured during a synchronization cycle.
 final class SyncMetrics {
   /// Internal constructor for synchronization metrics.

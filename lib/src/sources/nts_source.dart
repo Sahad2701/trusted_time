@@ -3,30 +3,11 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:cryptography/cryptography.dart';
-
 import '../domain/time_sample.dart';
 import '../domain/time_source.dart';
 import '../domain/time_interval.dart';
 import '../models.dart';
-
-/// Authentication levels for NTS queries.
-enum NtsAuthLevel {
-  /// No authentication performed (Plain NTP/HTTPS).
-  none,
-
-  /// **ADVISORY ONLY**: NTS-KE handshake successful, but AEAD verification 
-  /// is currently simulated/advisory due to Dart SDK limitations (lack of 
-  /// TLS exporters and native AES-SIV support).
-  ///
-  /// This level provides protection against accidental drift but NOT against 
-  /// determined on-path adversaries. Do not use for high-value financial 
-  /// or security-critical transactions.
-  advisory,
-
-  /// Full cryptographic authentication (Reserved for future native/FFI implementation).
-  verified,
-}
+import 'nts_auth_level.dart';
 
 /// Pure-Dart NTS (Network Time Security, RFC 8915) time source.
 ///
@@ -68,7 +49,6 @@ final class NtsSource implements TimeSource {
   // NTS Extension Field types (RFC 8915 §5)
   static const int _efUniqueIdentifier = 0x0104;
   static const int _efNtsCookie = 0x0204;
-  static const int _efNtsAuthenticator = 0x0404;
 
   // AEAD algorithm ID for AES-SIV-CMAC-256 (RFC 5297, IANA #15)
   static const int _aeadAesSivCmac256 = 15;
@@ -310,15 +290,43 @@ final class NtsSource implements TimeSource {
       // Wait for response (with timeout)
       Datagram? dgram;
       final deadline = DateTime.now().add(const Duration(seconds: 5));
-      while (DateTime.now().isBefore(deadline)) {
-        final event = await socket.asyncMap((e) => e).first.timeout(
-              const Duration(seconds: 5),
-              onTimeout: () => throw TimeoutException('NTS NTP timeout'),
-            );
-        if (event == RawSocketEvent.read) {
-          dgram = socket.receive();
-          break;
+
+      // Create a single stream subscription to avoid leaks
+      var completer = Completer<RawSocketEvent>();
+      StreamSubscription<RawSocketEvent>? subscription;
+      subscription = socket.listen(
+        (event) {
+          if (event == RawSocketEvent.read && !completer.isCompleted) {
+            completer.complete(event);
+          }
+        },
+        onError: (Object e) {
+          if (!completer.isCompleted) {
+            completer.completeError(e);
+          }
+        },
+        cancelOnError: true,
+      );
+
+      try {
+        while (DateTime.now().isBefore(deadline)) {
+          final event = await completer.future.timeout(
+            const Duration(seconds: 5),
+            onTimeout: () => throw TimeoutException('NTS NTP timeout'),
+          );
+
+          // Reset completer for next iteration if we didn't get read event
+          if (!completer.isCompleted) {
+            completer = Completer<RawSocketEvent>();
+          }
+
+          if (event == RawSocketEvent.read) {
+            dgram = socket.receive();
+            break;
+          }
         }
+      } finally {
+        await subscription.cancel();
       }
       sw.stop();
 
@@ -346,27 +354,12 @@ final class NtsSource implements TimeSource {
     // Extension Field: NTS Cookie (RFC 8915 §5.4)
     _writeExtensionField(buf, _efNtsCookie, cookie);
 
-    // Compute the AEAD authenticator over the packet so far (RFC 8915 §5.6)
-    final payload = buf.toBytes();
-    final aead = AesCbc.with256bits(macAlgorithm: Hmac.sha256());
-    // Note: AES-SIV-CMAC-256 (IANA #15) is the required algorithm, but
-    // package:cryptography does not yet include AES-SIV. We use a structured
-    // placeholder MAC here. A future version will switch to a dedicated
-    // AES-SIV implementation.
-    final secretKey = await aead.newSecretKeyFromBytes(c2sKey);
-    final nonce = _generateUniqueId().sublist(0, 16);
-    final encryptResult = await aead.encrypt(
-      [],
-      secretKey: secretKey,
-      nonce: nonce,
-      aad: payload,
-    );
-
-    // Extension Field: NTS Authenticator (RFC 8915 §5.6)
-    final authBody = BytesBuilder()
-      ..add(nonce)
-      ..add(encryptResult.mac.bytes);
-    _writeExtensionField(buf, _efNtsAuthenticator, authBody.toBytes());
+    // Note: AES-SIV-CMAC-256 (IANA #15) is the required algorithm for NTS
+    // authentication (RFC 8915 §5.6), but package:cryptography does not yet
+    // include AES-SIV. Since using AesCbc + HMAC-SHA-256 would be rejected by
+    // all conformant NTS servers, we omit the authenticator extension field
+    // entirely. This aligns with the advisory authentication level.
+    // A future version will implement proper AES-SIV-CMAC-256.
 
     return buf.toBytes();
   }
