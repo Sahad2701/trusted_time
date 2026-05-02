@@ -30,7 +30,7 @@ void main() {
       };
 
       final anchor = TrustAnchor.fromJson(json);
-      expect(anchor.confidence, ConfidenceLevel.low);
+      expect(anchor.confidence, ConfidenceLevel.none);
     });
 
     test('handles missing optional fields with safe defaults', () {
@@ -43,7 +43,7 @@ void main() {
 
       final anchor = TrustAnchor.fromJson(json);
       expect(anchor.authLevel, NtsAuthLevel.none);
-      expect(anchor.confidence, ConfidenceLevel.low);
+      expect(anchor.confidence, ConfidenceLevel.none);
     });
   });
 }
