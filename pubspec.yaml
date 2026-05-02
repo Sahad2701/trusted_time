@@ -42,10 +42,8 @@ flutter:
         pluginClass: TrustedTimePlugin
       ios:
         pluginClass: TrustedTimePlugin
-        sharedDarwinSource: true
       macos:
         pluginClass: TrustedTimePlugin
-        sharedDarwinSource: true
       windows:
         pluginClass: TrustedTimePlugin
       linux:
