@@ -33,7 +33,6 @@
   - Windows: Migrated to `GetTickCount64` and subclassed `WM_TIMECHANGE` for robust integrity monitoring.
   - Linux: Switched to `CLOCK_BOOTTIME` and `timerfd` to correctly track time during system suspend.
   - Thread Safety: Re-affirmed and enforced main-thread dispatching for all Darwin platform event channels.
-  - Memory Optimization: Enhanced `SyncClock` static state management during engine re-initialization.
 
 ## 1.2.1
 

@@ -100,12 +100,16 @@ final class TrustAnchor {
   ///
   /// As the score approaches 0.1 (the absolute floor), applications should 
   /// consider the anchor "stale" and trigger a resync.
+  ///
+  /// **Safe Range**: This calculation uses double-precision arithmetic and 
+  /// [Duration.inMinutes] (returning a 64-bit int). It is numerically stable 
+  /// for anchor ages exceeding 4,000 years.
   double get confidenceScore {
     final age = DateTime.now().difference(syncTime);
     
     // Freshness Decay (Half-life model)
     final halfLifeHours = confidence == ConfidenceLevel.high ? 6.0 : 2.0;
-    final decay = age.inMinutes / (halfLifeHours * 60);
+    final decay = age.inMinutes.toDouble() / (halfLifeHours * 60.0);
     final freshness = 1.0 / (1.0 + decay);
 
     // Base Trust Floor

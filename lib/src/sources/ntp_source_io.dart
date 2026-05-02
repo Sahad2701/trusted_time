@@ -10,7 +10,7 @@ final class NtpSource implements TimeSource {
   final String _host;
 
   @override
-  String get id => 'ntp:$_host';
+  String get id => '${TimeSource.prefixNtp}$_host';
 
   @override
   String get groupId => _host.split('.').reversed.skip(1).take(2).toList().reversed.join('.') 

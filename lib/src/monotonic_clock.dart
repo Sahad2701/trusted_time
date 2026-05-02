@@ -25,40 +25,34 @@ final class PlatformMonotonicClock implements MonotonicClock {
 
 /// In-memory cache enabling sub-microsecond synchronous access to trusted time.
 ///
-/// Uses Dart's [Stopwatch] (backed by the OS monotonic clock) so that
+/// Uses Dart's [Stopwatch] (backed by the OS monotonic clock) so that 
 /// elapsed-time measurement is immune to system clock manipulation.
-///
-/// **Design note**: [SyncClock] uses Dart's [Stopwatch] for elapsed-time
-/// tracking, while [PlatformMonotonicClock] uses native kernel timers
-/// (`SystemClock.elapsedRealtime`, `ProcessInfo.systemUptime`, etc.).
-/// Both are monotonic clocks but from different sources. The [Stopwatch]
-/// does not count time spent in deep sleep on some platforms, but this
-/// is acceptable because the anchor is refreshed periodically and after
-/// reboots. The key guarantee is that [Stopwatch] cannot be manipulated
-/// by changing the system clock.
 final class SyncClock {
-  SyncClock._();
+  SyncClock();
 
-  static int _cachedUptimeMs = 0;
-  static int _cachedWallMs = 0;
-  static final Stopwatch _stopwatch = Stopwatch();
+  int _cachedUptimeMs = 0;
+  int _cachedWallMs = 0;
+  final Stopwatch _stopwatch = Stopwatch();
 
-  static void update(int uptimeMs, int wallMs) {
+  /// Updates the clock with a new trust anchor.
+  void update(int uptimeMs, int wallMs) {
     _cachedUptimeMs = uptimeMs;
     _cachedWallMs = wallMs;
     _stopwatch.reset();
     _stopwatch.start();
   }
 
-  static int elapsedSinceAnchorMs() => _stopwatch.elapsedMilliseconds;
+  /// Returns the elapsed time since the anchor was last updated.
+  int elapsedSinceAnchorMs() => _stopwatch.elapsedMilliseconds;
 
-  static int get lastUptimeMs => _cachedUptimeMs;
-  static int get lastWallMs => _cachedWallMs;
+  /// The hardware uptime recorded in the last anchor.
+  int get lastUptimeMs => _cachedUptimeMs;
 
-  /// #14: Clears all static state and stops the stopwatch.
-  /// Called from [TrustedTimeImpl.dispose] to prevent stale state
-  /// leaking across test cases or re-initialization cycles.
-  static void reset() {
+  /// The system wall-clock recorded in the last anchor.
+  int get lastWallMs => _cachedWallMs;
+
+  /// Stops the internal stopwatch and clears the cache.
+  void dispose() {
     _cachedUptimeMs = 0;
     _cachedWallMs = 0;
     _stopwatch.stop();

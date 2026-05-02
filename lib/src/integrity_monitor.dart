@@ -156,7 +156,11 @@ final class IntegrityMonitor {
   }
 
   void _emit(IntegrityEvent event) {
-    if (!_controller.isClosed) _controller.add(event);
+    try {
+      if (!_controller.isClosed) _controller.add(event);
+    } catch (_) {
+      // Stream may have closed between check and add in rare race conditions.
+    }
   }
 
   /// Releases platform channel listeners and stops surveillance.

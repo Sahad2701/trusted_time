@@ -23,13 +23,15 @@ final class TrustedTimeImpl {
   })  : _config = config,
         _store = store,
         _cache = ConsensusCache(),
-        _syncEngine = SyncEngine(
-          config: config,
-          clock: clock,
-          cache: ConsensusCache(),
-          observer: _ProxySyncObserver(() => _instance?._observers ?? {}),
-        ),
-        _monitor = IntegrityMonitor(clock: clock);
+        _syncClock = SyncClock(),
+        _monitor = IntegrityMonitor(clock: clock) {
+    _syncEngine = SyncEngine(
+      config: config,
+      clock: clock,
+      cache: _cache,
+      observer: _ProxySyncObserver(() => _observers),
+    );
+  }
 
   static TrustedTimeImpl? _instance;
 
@@ -56,6 +58,7 @@ final class TrustedTimeImpl {
   final SyncEngine _syncEngine;
   final IntegrityMonitor _monitor;
   final ConsensusCache _cache;
+  final SyncClock _syncClock;
   final _observers = <SyncObserver>{};
 
   TrustAnchor? _anchor;
@@ -92,7 +95,7 @@ final class TrustedTimeImpl {
       throw const TrustedTimeNotReadyException();
     }
     return DateTime.fromMillisecondsSinceEpoch(
-      _anchor!.networkUtcMs + SyncClock.elapsedSinceAnchorMs(),
+      _anchor!.networkUtcMs + _syncClock.elapsedSinceAnchorMs(),
       isUtc: true,
     );
   }
@@ -221,7 +224,7 @@ final class TrustedTimeImpl {
 
   void _applyAnchor(TrustAnchor anchor) {
     _anchor = anchor;
-    SyncClock.update(anchor.uptimeMs, anchor.wallMs);
+    _syncClock.update(anchor.uptimeMs, anchor.wallMs);
     _monitor.attach(anchor);
   }
 
@@ -261,7 +264,7 @@ final class TrustedTimeImpl {
     _integritySub?.cancel();
     _syncEngine.dispose();
     _monitor.dispose();
-    SyncClock.reset();
+    _syncClock.dispose();
   }
 }
 
