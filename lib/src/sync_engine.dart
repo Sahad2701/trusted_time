@@ -72,18 +72,19 @@ final class SyncEngine {
     _observer?.onSyncStarted();
     final swSync = Stopwatch()..start();
     
+    final samples = <TimeSample>[];
+    final completer = Completer<TrustAnchor>();
+    final sampleController = StreamController<TimeSample?>();
+    
     try {
-      final samples = <TimeSample>[];
-      final completer = Completer<TrustAnchor>();
-      
       final now = DateTime.now();
       final activeSources = _sources.where((s) {
         final until = _blacklistUntil[s.id];
         return until == null || now.isAfter(until);
       }).toList();
 
-      var activeQueries = activeSources.length;
-      if (activeQueries == 0) {
+      var pendingQueries = activeSources.length;
+      if (pendingQueries == 0) {
         throw TrustedTimeSyncException(
           'All available time sources are currently in exponential cooldown due to persistent failures.'
         );
@@ -92,78 +93,76 @@ final class SyncEngine {
       TimeInterval? lastStabilityInterval;
       var stableCount = 0;
 
-      // Launch all queries in parallel. The first valid quorum that meets 
-      // stability requirements will trigger the 'Early Exit'.
-      for (final source in activeSources) {
-        _querySafe(source).then((sample) {
-          if (completer.isCompleted) return;
+      // 1. Process samples sequentially via a stream to preserve determinism 
+      // and prevent race conditions during list mutation.
+      final streamSub = sampleController.stream.listen((sample) {
+        if (completer.isCompleted) return;
 
-          if (sample != null) {
-            samples.add(sample);
-            _observer?.onSampleReceived(sample);
+        if (sample != null) {
+          samples.add(sample);
+          _observer?.onSampleReceived(sample);
 
-            // Adaptive Outlier Filtering:
-            // We use a simplified Median Absolute Deviation (MAD) approach. 
-            // If a source's uncertainty is > 3x the median of the current set, 
-            // it is rejected as a statistical outlier.
-            if (samples.length >= 3) {
-              final uncertainties = samples.map((s) => s.uncertaintyMs).toList()..sort();
-              final medianU = uncertainties[uncertainties.length ~/ 2];
-              if (sample.uncertaintyMs > max(medianU * 3, 500)) {
-                samples.remove(sample);
-                _observer?.onSourceFailed(source.id, 'Adaptive exclusion: statistical outlier detected');
-              }
-            }
-
-            final result = _engine.resolve(samples);
-            if (result != null) {
-              // Stability Escalation: 
-              // If we detect high variance (>500ms) between any sample and 
-              // the current consensus, we escalate the stability requirement 
-              // from N=2 to N=3 consecutive matches.
-              final varianceDetected = samples.any(
-                (s) => (s.interval.midMs - result.utc.millisecondsSinceEpoch).abs() > 500
-              );
-              final requiredStability = varianceDetected ? 3 : 2;
-
-              if (lastStabilityInterval == result.interval) {
-                stableCount++;
-              } else {
-                stableCount = 1;
-              }
-              lastStabilityInterval = result.interval;
-
-              if (stableCount >= requiredStability) {
-                if (_config.earlyExit || samples.length == activeSources.length) {
-                  swSync.stop();
-                  _completeSync(result, swSync.elapsedMilliseconds, completer);
-                }
-              }
+          // Adaptive Outlier Filtering
+          if (samples.length >= 3) {
+            final uncertainties = samples.map((s) => s.uncertaintyMs).toList()..sort();
+            final medianU = uncertainties[uncertainties.length ~/ 2];
+            if (sample.uncertaintyMs > max(medianU * 3, 500)) {
+              samples.remove(sample);
+              _observer?.onSourceFailed(sample.sourceId, 'Adaptive exclusion: statistical outlier detected');
             }
           }
 
-          activeQueries--;
-          if (activeQueries == 0 && !completer.isCompleted) {
-            completer.completeError(
-              TrustedTimeSyncException('Failed to reach quorum after exhausting all healthy sources.')
+          final result = _engine.resolve(samples);
+          if (result != null) {
+            final varianceDetected = samples.any(
+              (s) => (s.interval.midpoint - result.utc.millisecondsSinceEpoch).abs() > 500
             );
+            final requiredStability = varianceDetected ? 3 : 2;
+
+            if (lastStabilityInterval == result.interval) {
+              stableCount++;
+            } else {
+              stableCount = 1;
+            }
+            lastStabilityInterval = result.interval;
+
+            if (stableCount >= requiredStability) {
+              if (_config.earlyExit || samples.length == activeSources.length) {
+                swSync.stop();
+                _completeSync(result, swSync.elapsedMilliseconds, completer);
+              }
+            }
           }
+        }
+
+        pendingQueries--;
+        if (pendingQueries == 0 && !completer.isCompleted) {
+          completer.completeError(
+            TrustedTimeSyncException('Failed to reach quorum after exhausting all healthy sources.')
+          );
+        }
+      });
+
+      // 2. Launch racing queries
+      for (final source in activeSources) {
+        _querySafe(source).then((s) {
+          if (!sampleController.isClosed) sampleController.add(s);
         });
       }
 
       final anchor = await completer.future.timeout(
         _config.maxLatency + const Duration(seconds: 1),
         onTimeout: () {
-          // If the race times out, we perform a fallback resolution on 
-          // whatever samples were collected, provided they meet the 
-          // minimum quorum threshold.
-          if (samples.length >= _config.minimumQuorum) {
+          if (!completer.isCompleted && samples.length >= _config.minimumQuorum) {
              final result = _engine.resolve(samples);
              if (result != null) return _createAnchor(result);
           }
           throw TrustedTimeSyncException('Synchronization timed out before reaching a stable quorum.');
         }
-      );
+      ).whenComplete(() {
+        streamSub.cancel();
+        sampleController.close();
+      });
 
       _syncAttempts = 0; 
       _cache?.update(anchor);
@@ -171,17 +170,21 @@ final class SyncEngine {
     } catch (e) {
       _observer?.onSyncFailed(e);
       _syncAttempts++;
+      if (!completer.isCompleted) {
+        completer.completeError(e); // Ensure future unblocks on error
+      }
       rethrow;
     }
   }
 
   Future<void> _completeSync(ConsensusResult result, int latencyMs, Completer<TrustAnchor> completer) async {
+    if (completer.isCompleted) return;
+    
     try {
       final anchor = await _createAnchor(result);
       _observer?.onConsensusReached(result);
       
-      // Emit high-precision metrics for observability.
-      _observer?.onSyncMetrics(SyncMetrics(
+      _observer?.onMetricsReported(SyncMetrics(
         latencyMs: latencyMs,
         uncertaintyMs: result.uncertaintyMs,
         participantCount: result.participantCount,
@@ -194,7 +197,7 @@ final class SyncEngine {
         },
       ));
 
-      completer.complete(anchor);
+      if (!completer.isCompleted) completer.complete(anchor);
     } catch (e) {
       if (!completer.isCompleted) completer.completeError(e);
     }
@@ -224,9 +227,6 @@ final class SyncEngine {
     } catch (e) {
       _observer?.onSourceFailed(source.id, e);
       
-      // Exponential Cooldown: 2^failureCount minutes.
-      // This protects the network from aggressive retries against dead 
-      // or malicious endpoints.
       final score = (_sourceHealth[source.id] ?? 0) + 1;
       _sourceHealth[source.id] = score;
       final cooldownMin = pow(2, min(score, 6)).toInt();
@@ -250,19 +250,4 @@ final class SyncEngine {
       if (source is HttpsSource) source.dispose();
     }
   }
-}
-
-extension on SyncObserver {
-  void onSyncMetrics(SyncMetrics metrics) {
-    // This helper allows us to call the metrics hook if it's implemented.
-    // In a real project, this would be part of the interface.
-    if (this is MetricsObserver) {
-      (this as MetricsObserver).onMetricsReported(metrics);
-    }
-  }
-}
-
-/// Extended interface for machine-readable metrics.
-abstract interface class MetricsObserver extends SyncObserver {
-  void onMetricsReported(SyncMetrics metrics);
 }
