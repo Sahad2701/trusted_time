@@ -151,8 +151,18 @@ final class SyncEngine {
 
         pendingQueries--;
         if (pendingQueries == 0 && !completer.isCompleted) {
-          completer.completeError(TrustedTimeSyncException(
-              'Failed to reach quorum after exhausting all healthy sources.'));
+          // All sources responded but we haven't reached stability.
+          // Try one final resolve with all samples before failing.
+          final finalResult = _engine.resolve(samples);
+          if (finalResult != null &&
+              samples.length >= _config.minimumQuorum) {
+            swSync.stop();
+            unawaited(_completeSync(
+                finalResult, swSync.elapsedMilliseconds, completer));
+          } else {
+            completer.completeError(TrustedTimeSyncException(
+                'Failed to reach quorum after exhausting all healthy sources.'));
+          }
         }
       });
 
