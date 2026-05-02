@@ -92,7 +92,8 @@ final class MarzulloEngine {
     final totalSources = validSamples.length;
     final requiredQuorum = (totalSources * minQuorumRatio).ceil();
 
-    if (totalSources == 0 || requiredQuorum == 0) return null;
+    // Minimum 2 samples required for any consensus (avoids single-source trust)
+    if (totalSources < 2 || requiredQuorum < 2) return null;
 
     final endpoints = <_Endpoint>[];
     for (final s in validSamples) {
