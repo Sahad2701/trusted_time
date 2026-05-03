@@ -65,6 +65,9 @@ jobs:
           flags: unittests
           fail_ci_if_error: false
 
+      - name: Restore git state (macOS may modify xcconfig files during flutter pub get)
+        run: git restore .
+
       - name: Validate pub.dev publish requirements
         run: dart pub publish --dry-run
 
