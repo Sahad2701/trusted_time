@@ -1,10 +1,10 @@
 import 'dart:async';
 import '../trusted_time.dart';
 
-/// Documented.
+/// The global test override for [TrustedTime] (internal use only).
 TrustedTimeMock? testOverride;
 
-/// Documented.
+/// Sets the global test override for [TrustedTime] (internal use only).
 void setTestOverride(TrustedTimeMock? mock) => testOverride = mock;
 
 /// High-fidelity test double for deterministic temporal testing.
@@ -26,7 +26,7 @@ void setTestOverride(TrustedTimeMock? mock) => testOverride = mock;
 /// mock.dispose();
 /// ```
 final class TrustedTimeMock {
-  /// Documented.
+  /// Creates a new mock with an initial UTC timestamp.
   TrustedTimeMock({required DateTime initial})
       : _now = initial.toUtc(),
         _trusted = true;
@@ -37,43 +37,43 @@ final class TrustedTimeMock {
   DateTime? _rebootTime;
   final _controller = StreamController<IntegrityEvent>.broadcast();
 
-  /// Documented.
+  /// The current time of the mock.
   DateTime get now => _now;
 
-  /// Documented.
+  /// Whether the mock is currently in a trusted state.
   bool get isTrusted => _trusted;
 
-  /// Documented.
+  /// The current NTS authentication level of the mock.
   NtsAuthLevel get authLevel => _authLevel;
 
-  /// Documented.
+  /// The current time as Unix milliseconds since epoch.
   int get nowUnixMs => _now.millisecondsSinceEpoch;
 
-  /// Documented.
+  /// The current time in ISO-8601 format.
   String get nowIso => _now.toIso8601String();
 
-  /// Documented.
+  /// Emits integrity events simulated by this mock.
   Stream<IntegrityEvent> get onIntegrityLost => _controller.stream;
 
-  /// Documented.
+  /// Advances the mock time by the given duration.
   void advanceTime(Duration delta) => _now = _now.add(delta);
 
-  /// Documented.
+  /// Sets the mock time to the specified UTC [DateTime].
   void setNow(DateTime time) => _now = time.toUtc();
 
-  /// Documented.
+  /// Sets the mock to a trusted or untrusted state.
   void setTrusted(bool trusted) => _trusted = trusted;
 
-  /// Documented.
+  /// Sets the NTS authentication level for this mock.
   void setAuthLevel(NtsAuthLevel level) => _authLevel = level;
 
-  /// Documented.
+  /// Restores the mock to a trusted state and clears reboot history.
   void restoreTrust() {
     _trusted = true;
     _rebootTime = null;
   }
 
-  /// Documented.
+  /// Simulates a device reboot, invalidating trust and emitting an event.
   void simulateReboot() {
     _trusted = false;
     _rebootTime = _now;
@@ -82,13 +82,13 @@ final class TrustedTimeMock {
     );
   }
 
-  /// Documented.
+  /// Simulates temporal tampering, emitting an integrity event with the given [reason] and optional [drift].
   void simulateTampering(TamperReason reason, {Duration? drift}) {
     _trusted = false;
     _emit(IntegrityEvent(reason: reason, detectedAt: _now, drift: drift));
   }
 
-  /// Documented.
+  /// Returns an estimated time based on the current mock state.
   TrustedTimeEstimate? nowEstimated() {
     if (_trusted) {
       return TrustedTimeEstimate(
@@ -112,6 +112,6 @@ final class TrustedTimeMock {
     if (!_controller.isClosed) _controller.add(event);
   }
 
-  /// Documented.
+  /// Closes the stream controller and cleans up resources.
   void dispose() => _controller.close();
 }

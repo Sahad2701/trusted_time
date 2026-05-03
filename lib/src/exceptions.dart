@@ -47,10 +47,10 @@ final class UnknownTimezoneException implements Exception {
 /// Thrown when a secure time query is requested but the engine cannot provide
 /// cryptographically authenticated time (e.g. NTS failed).
 final class TrustedTimeSecurityException implements Exception {
-  /// Documented.
+  /// Creates a [TrustedTimeSecurityException] with a descriptive [message].
   const TrustedTimeSecurityException(this.message);
 
-  /// Documented.
+  /// Human-readable description of the security requirement violation.
   final String message;
   @override
   String toString() => 'TrustedTimeSecurityException: $message';
@@ -58,10 +58,10 @@ final class TrustedTimeSecurityException implements Exception {
 
 /// Thrown when local state restoration or persistence fails.
 final class TrustedTimePersistenceException implements Exception {
-  /// Documented.
+  /// Creates a [TrustedTimePersistenceException] with a descriptive [message].
   const TrustedTimePersistenceException(this.message);
 
-  /// Documented.
+  /// Human-readable description of the persistence error.
   final String message;
   @override
   String toString() => 'TrustedTimePersistenceException: $message';

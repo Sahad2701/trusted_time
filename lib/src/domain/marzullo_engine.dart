@@ -10,7 +10,7 @@ import '../../trusted_time.dart';
 /// and the metadata required to judge the integrity of the consensus.
 @immutable
 final class ConsensusResult {
-  /// Documented.
+  /// Creates a new [ConsensusResult] from the resolved consensus interval and metadata.
   const ConsensusResult({
     required this.utc,
     required this.uncertaintyMs,
@@ -59,7 +59,7 @@ final class ConsensusResult {
 /// * **Graduated Trust**: Automatically grades the resulting consensus as
 ///   low, medium, or high confidence based on depth and diversity.
 final class MarzulloEngine {
-  /// Documented.
+  /// Creates a new [MarzulloEngine] with the specified consensus parameters.
   const MarzulloEngine({
     this.minQuorumRatio = 0.6,
     this.maxAllowedUncertaintyMs = 10000,
