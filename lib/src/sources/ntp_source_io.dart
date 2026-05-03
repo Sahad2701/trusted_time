@@ -5,6 +5,7 @@ import '../domain/time_interval.dart';
 
 /// NTP time source — IO-only (uses UDP sockets via `dart:io`).
 final class NtpSource implements TimeSource {
+  /// Documented.
   const NtpSource(this._host);
 
   final String _host;

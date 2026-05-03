@@ -34,7 +34,7 @@ enum TamperReason {
 
 /// Encapsulates a violation of temporal integrity with forensic metadata.
 ///
-/// [IntegrityEvent]s are emitted whenever the [IntegrityMonitor] detects
+/// [IntegrityEvent]s are emitted whenever the integrity monitor detects
 /// a discrepancy that invalidates the current [TrustAnchor].
 ///
 /// Use this for security auditing and to trigger high-priority recovery

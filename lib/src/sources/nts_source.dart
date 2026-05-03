@@ -33,6 +33,7 @@ import 'nts_auth_level.dart';
 /// empty (the default), no [NtsSource] is instantiated and no TLS connections
 /// are made. The `cryptography` package tree-shakes all AEAD code.
 final class NtsSource implements TimeSource {
+  /// Documented.
   NtsSource(this._host, {int port = 4460}) : _port = port;
 
   final String _host;

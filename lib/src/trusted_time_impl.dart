@@ -49,11 +49,13 @@ final class TrustedTimeImpl {
 
   static TrustedTimeImpl? _instance;
 
+  /// Documented.
   static TrustedTimeImpl get instance {
     assert(_instance != null, 'Call TrustedTime.initialize() first.');
     return _instance!;
   }
 
+  /// Documented.
   static Future<TrustedTimeImpl> init(TrustedTimeConfig config) async {
     _instance?.dispose();
     final impl = TrustedTimeImpl._(
@@ -85,7 +87,10 @@ final class TrustedTimeImpl {
   int? _offlineLastUtcMs;
   int? _offlineLastWallMs;
 
+  /// Documented.
   Stream<IntegrityEvent> get onIntegrityLost => _monitor.events;
+
+  /// Documented.
   bool get isTrusted => _trusted;
 
   /// The currently active trust anchor.
@@ -114,9 +119,13 @@ final class TrustedTimeImpl {
     );
   }
 
+  /// Documented.
   int nowUnixMs() => now().millisecondsSinceEpoch;
+
+  /// Documented.
   String nowIso() => now().toIso8601String();
 
+  /// Documented.
   TrustedTimeEstimate? nowEstimated() {
     int? baseUtcMs;
     int? baseWallMs;
@@ -298,6 +307,7 @@ final class TrustedTimeImpl {
     if (call.method == 'onBackgroundSync') await _performSync();
   }
 
+  /// Documented.
   void dispose() {
     _refreshTimer?.cancel();
     _retryTimer?.cancel();

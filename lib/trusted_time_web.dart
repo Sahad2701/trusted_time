@@ -11,6 +11,7 @@ import 'package:web/web.dart' as web;
 /// zero on every page load. This means trust anchors cannot survive page
 /// refreshes; the engine will perform a fresh network sync on each load.
 class TrustedTimeWebPlugin {
+  /// Documented.
   static void registerWith(Registrar registrar) {
     const MethodChannel('trusted_time/monotonic')
         .setMethodCallHandler(_handleMonotonic);
