@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.1]
+
+### Fixed
+- **Dependency Resolution**: Loosened constraints for `web`, `http`, and `timezone` to resolve pub.dev analyzer conflicts.
+- **Documentation**: Enhanced dartdocs for public symbols to improve pub.dev score.
+
 ## [2.0.0]
 
 ### Added

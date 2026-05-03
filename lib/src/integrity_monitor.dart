@@ -19,6 +19,7 @@ import 'monotonic_clock.dart';
 /// bypassed or suppressed, manual wall-clock manipulation is eventually
 /// detected via monotonic divergence.
 final class IntegrityMonitor {
+  /// Documented.
   IntegrityMonitor({required MonotonicClock clock}) : _clock = clock;
 
   final MonotonicClock _clock;

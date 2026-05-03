@@ -8,6 +8,7 @@ export 'nts_source_stub.dart' if (dart.library.io) 'nts_source.dart';
 
 /// Fetches UTC time from an HTTPS endpoint's `Date` response header.
 final class HttpsSource implements TimeSource {
+  /// Documented.
   HttpsSource(this._url, {http.Client? client})
       : _client = client ?? http.Client();
 
@@ -61,6 +62,7 @@ final class HttpsSource implements TimeSource {
     );
   }
 
+  /// Documented.
   void dispose() => _client.close();
 }
 

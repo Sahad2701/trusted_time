@@ -1,9 +1,10 @@
 import 'package:flutter/foundation.dart';
 
-/// Represents a CLOSED mathematical interval [startMs, endMs] in UNIX epoch milliseconds.
+/// Represents a CLOSED mathematical interval `[startMs, endMs]` in UNIX epoch milliseconds.
 /// Used for Marzullo's consensus algorithm. Both bounds are inclusive.
 @immutable
 final class TimeInterval {
+  /// Documented.
   const TimeInterval({
     required this.startMs,
     required this.endMs,

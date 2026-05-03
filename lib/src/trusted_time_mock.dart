@@ -1,7 +1,10 @@
 import 'dart:async';
 import '../trusted_time.dart';
 
+/// Documented.
 TrustedTimeMock? testOverride;
+
+/// Documented.
 void setTestOverride(TrustedTimeMock? mock) => testOverride = mock;
 
 /// High-fidelity test double for deterministic temporal testing.
@@ -23,6 +26,7 @@ void setTestOverride(TrustedTimeMock? mock) => testOverride = mock;
 /// mock.dispose();
 /// ```
 final class TrustedTimeMock {
+  /// Documented.
   TrustedTimeMock({required DateTime initial})
       : _now = initial.toUtc(),
         _trusted = true;
@@ -33,23 +37,43 @@ final class TrustedTimeMock {
   DateTime? _rebootTime;
   final _controller = StreamController<IntegrityEvent>.broadcast();
 
+  /// Documented.
   DateTime get now => _now;
+
+  /// Documented.
   bool get isTrusted => _trusted;
+
+  /// Documented.
   NtsAuthLevel get authLevel => _authLevel;
+
+  /// Documented.
   int get nowUnixMs => _now.millisecondsSinceEpoch;
+
+  /// Documented.
   String get nowIso => _now.toIso8601String();
+
+  /// Documented.
   Stream<IntegrityEvent> get onIntegrityLost => _controller.stream;
 
+  /// Documented.
   void advanceTime(Duration delta) => _now = _now.add(delta);
+
+  /// Documented.
   void setNow(DateTime time) => _now = time.toUtc();
+
+  /// Documented.
   void setTrusted(bool trusted) => _trusted = trusted;
+
+  /// Documented.
   void setAuthLevel(NtsAuthLevel level) => _authLevel = level;
 
+  /// Documented.
   void restoreTrust() {
     _trusted = true;
     _rebootTime = null;
   }
 
+  /// Documented.
   void simulateReboot() {
     _trusted = false;
     _rebootTime = _now;
@@ -58,11 +82,13 @@ final class TrustedTimeMock {
     );
   }
 
+  /// Documented.
   void simulateTampering(TamperReason reason, {Duration? drift}) {
     _trusted = false;
     _emit(IntegrityEvent(reason: reason, detectedAt: _now, drift: drift));
   }
 
+  /// Documented.
   TrustedTimeEstimate? nowEstimated() {
     if (_trusted) {
       return TrustedTimeEstimate(
@@ -86,5 +112,6 @@ final class TrustedTimeMock {
     if (!_controller.isClosed) _controller.add(event);
   }
 
+  /// Documented.
   void dispose() => _controller.close();
 }

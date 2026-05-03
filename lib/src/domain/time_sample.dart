@@ -5,6 +5,7 @@ import '../../trusted_time.dart';
 /// Combines the mathematical [interval] with telemetry [sourceId] and [groupId].
 @immutable
 final class TimeSample {
+  /// Documented.
   const TimeSample({
     required this.interval,
     required this.sourceId,

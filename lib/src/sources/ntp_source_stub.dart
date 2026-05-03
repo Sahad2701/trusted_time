@@ -3,6 +3,7 @@ import '../domain/time_source.dart';
 
 /// NTP time source stub — actual implementation in `ntp_source_io.dart`.
 final class NtpSource implements TimeSource {
+  /// Documented.
   const NtpSource(this._host);
 
   final String _host;

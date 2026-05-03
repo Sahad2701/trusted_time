@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 /// Monotonic clocks only move forward and are immune to system clock
 /// manipulation. They reset to zero on device reboot.
 abstract interface class MonotonicClock {
+  /// Documented.
   Future<int> uptimeMs();
 }
 
@@ -28,6 +29,7 @@ final class PlatformMonotonicClock implements MonotonicClock {
 /// Uses Dart's [Stopwatch] (backed by the OS monotonic clock) so that
 /// elapsed-time measurement is immune to system clock manipulation.
 final class SyncClock {
+  /// Documented.
   SyncClock();
 
   int _cachedUptimeMs = 0;

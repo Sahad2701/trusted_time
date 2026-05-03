@@ -3,6 +3,7 @@ import '../models.dart';
 /// Cache for the last successful consensus result.
 /// Helps survive short-term network issues and app restarts.
 final class ConsensusCache {
+  /// Documented.
   ConsensusCache({this.ttl = const Duration(hours: 24)});
 
   /// How long a cached anchor remains valid for bootstrap.

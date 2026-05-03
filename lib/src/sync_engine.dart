@@ -24,6 +24,7 @@ import 'infra/consensus_cache.dart';
 /// 3. **Mathematical Outlier Filtering**: Uses median-based guards to neutralize
 ///    malicious or jittery time authorities.
 final class SyncEngine {
+  /// Documented.
   SyncEngine({
     required TrustedTimeConfig config,
     required MonotonicClock clock,
