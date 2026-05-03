@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 /// Used for Marzullo's consensus algorithm. Both bounds are inclusive.
 @immutable
 final class TimeInterval {
-  /// Documented.
+  /// Creates a new [TimeInterval] with the specified start and end times in milliseconds.
   const TimeInterval({
     required this.startMs,
     required this.endMs,

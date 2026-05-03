@@ -148,7 +148,7 @@ final class TrustedTimeConfig {
 /// network-verified UTC time to the device's hardware monotonic clock at a
 /// specific moment in time.
 final class TrustAnchor {
-  /// Internal constructor for creating a new trust anchor.
+  /// Creates a new [TrustAnchor] from network-verified time and monotonic clock measurements.
   const TrustAnchor({
     required this.networkUtcMs,
     required this.uptimeMs,
@@ -237,7 +237,7 @@ final class TrustAnchor {
 
 /// Diagnostic metrics captured during a synchronization cycle.
 final class SyncMetrics {
-  /// Internal constructor for synchronization metrics.
+  /// Creates a new [SyncMetrics] instance with diagnostic data from a synchronization cycle.
   const SyncMetrics({
     required this.latencyMs,
     required this.uncertaintyMs,
