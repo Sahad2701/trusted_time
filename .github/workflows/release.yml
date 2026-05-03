@@ -8,6 +8,7 @@ on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+*'
+  workflow_dispatch:
 
 # OIDC trusted publishing — no stored tokens or PATs required.
 # pub.dev trusted publishing must be configured at:
@@ -50,15 +51,17 @@ jobs:
       - name: Check tag matches pubspec.yaml version
         id: check
         run: |
-          TAG="${GITHUB_REF_NAME}"           # e.g. v2.0.0
           PUBSPEC_VER=$(grep '^version: ' pubspec.yaml | sed 's/version: //')
-          TAG_VER="${TAG#v}"                  # strip leading 'v'
-          echo "Tag version:     $TAG_VER"
           echo "pubspec version: $PUBSPEC_VER"
-          if [ "$TAG_VER" != "$PUBSPEC_VER" ]; then
-            echo "::error::Tag ($TAG_VER) does not match pubspec.yaml version ($PUBSPEC_VER)."
-            echo "Update pubspec.yaml and merge to main before tagging."
-            exit 1
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            TAG="${GITHUB_REF_NAME}"           # e.g. v2.0.0
+            TAG_VER="${TAG#v}"                  # strip leading 'v'
+            echo "Tag version:     $TAG_VER"
+            if [ "$TAG_VER" != "$PUBSPEC_VER" ]; then
+              echo "::error::Tag ($TAG_VER) does not match pubspec.yaml version ($PUBSPEC_VER)."
+              echo "Update pubspec.yaml and merge to main before tagging."
+              exit 1
+            fi
           fi
           echo "version=$PUBSPEC_VER" >> "$GITHUB_OUTPUT"
 
@@ -86,11 +89,11 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: "v${{ needs.verify-version.outputs.version }}"
           name: "TrustedTime v${{ needs.verify-version.outputs.version }}"
           body: ${{ steps.changelog.outputs.notes }}
           draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}  # rc/alpha/beta → pre-release
+          prerelease: ${{ contains(needs.verify-version.outputs.version, '-') }}  # rc/alpha/beta → pre-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
