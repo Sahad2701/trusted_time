@@ -6,41 +6,73 @@ on:
     paths-ignore:
       - '**.md'
       - 'LICENSE'
+      - 'NOTICE'
       - '.gitignore'
   pull_request:
     branches: [main]
     paths-ignore:
       - '**.md'
       - 'LICENSE'
+      - 'NOTICE'
       - '.gitignore'
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  analyze-and-test:
+    name: CI / analyze-and-test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: stable
+          cache: true
+
+      - name: Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ runner.tool_cache }}/flutter
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: pub-${{ runner.os }}-
 
       - name: Install dependencies
         run: flutter pub get
 
       - name: Verify formatting
-        run: dart format .
+        run: dart format --output=none --set-exit-if-changed .
 
-      - name: Analyze project
-        run: flutter analyze
+      - name: Analyze (fatal infos)
+        run: flutter analyze --fatal-infos
 
-      - name: Run tests
-        run: flutter test
+      - name: Run tests with coverage
+        run: flutter test --coverage
+
+      - name: Upload coverage (Ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage/lcov.info
+          flags: unittests
+          fail_ci_if_error: false
+
+      - name: Restore git state (macOS may modify xcconfig files during flutter pub get)
+        run: git restore .
+
+      - name: Validate pub.dev publish requirements
+        run: dart pub publish --dry-run
 
       - name: Analyze example app
         working-directory: example
         run: |
           flutter pub get
-          flutter analyze
+          flutter analyze --fatal-infos

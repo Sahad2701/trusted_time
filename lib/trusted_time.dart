@@ -1,32 +1,32 @@
-/// TrustedTime — tamper-proof, offline-safe, multi-source trusted time for
-/// Flutter.
+/// TrustedTime — The absolute source of truth for high-integrity time in Flutter.
 ///
-/// Provides reliable UTC timestamps immune to system clock manipulation by
-/// anchoring network-verified time to the device's hardware monotonic clock.
+/// This library provides cryptographically-aware, hardware-anchored UTC timestamps
+/// that remain accurate even in adversarial environments where the system clock
+/// is manipulated or network time is spoofed.
 ///
-/// ## Quick Start
+/// ## Core Concepts
+///
+/// * **Monotonic Anchoring**: We anchor network-verified time to the device's
+///   hardware oscillator (monotonic uptime). This creates a virtual clock that
+///   cannot be rolled back or forward by the user.
+/// * **Consensus (Marzullo)**: We use multi-source quorum resolution to filter
+///   out noisy or malicious time authorities.
+/// * **Security Intent**: Explicit distinction between "Trusted" (consensus-valid)
+///   and "Secure" (NTS-authenticated) time.
+///
+/// ## Usage Patterns
 ///
 /// ```dart
-/// // 1. Initialize once at app startup.
-/// await TrustedTime.initialize();
-///
-/// // 2. Get trusted time anywhere (synchronous, <1µs).
+/// // Standard high-integrity retrieval
 /// final now = TrustedTime.now();
 ///
-/// // 3. Check trust state.
-/// if (TrustedTime.isTrusted) { /* safe to use */ }
-///
-/// // 4. Listen for integrity violations.
-/// TrustedTime.onIntegrityLost.listen((event) {
-///   print('Integrity lost: ${event.reason}');
-/// });
+/// // Security-critical query (e.g. financial ledgering)
+/// final secureNow = TrustedTime.getTime(requireSecure: true);
 /// ```
-///
-/// See the [README](https://pub.dev/packages/trusted_time) for full
-/// documentation and advanced configuration.
 library;
 
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'src/exceptions.dart';
@@ -35,142 +35,230 @@ import 'src/models.dart';
 import 'src/trusted_time_estimate.dart';
 import 'src/trusted_time_impl.dart';
 import 'src/trusted_time_mock.dart';
+import 'src/infra/sync_observer.dart';
+import 'src/sources/nts_auth_level.dart';
 
 export 'src/exceptions.dart';
 export 'src/integrity_event.dart';
-export 'src/models.dart' show TrustedTimeConfig, TrustedTimeSource, TrustAnchor;
+export 'src/models.dart'
+    show TrustedTimeConfig, TrustAnchor, ConfidenceLevel, SyncMetrics;
 export 'src/trusted_time_estimate.dart';
 export 'src/trusted_time_mock.dart';
+export 'src/infra/sync_observer.dart';
+export 'src/sources/nts_auth_level.dart' show NtsAuthLevel;
+export 'src/domain/time_sample.dart' show TimeSample;
+export 'src/domain/marzullo_engine.dart' show ConsensusResult;
+export 'src/domain/time_interval.dart' show TimeInterval;
 
-/// Central entry point for all high-integrity time operations.
+/// The primary gateway for high-integrity time synchronization and retrieval.
 ///
-/// [TrustedTime] is a static-only API — call [initialize] once at app
-/// startup, then use [now], [nowUnixMs], or [nowIso] anywhere in your code
-/// for synchronous, sub-microsecond trusted time access.
+/// [TrustedTime] implements a self-healing operational state machine. It handles
+/// initial synchronization, background maintenance, and proactive drift detection.
 ///
-/// The engine synchronizes with multiple network time sources (NTP + HTTPS),
-/// establishes a quorum-based consensus, and anchors the result to the
-/// device's hardware monotonic clock. This ensures timestamps remain correct
-/// even if users manipulate their device's system clock.
+/// For most use cases, [now] is the preferred retrieval method. For high-security
+/// applications, use [getTime] to enforce specific cryptographic or confidence
+/// requirements.
 abstract final class TrustedTime {
   TrustedTime._();
 
   static bool _timezoneInitialized = false;
 
-  /// Bootstraps the engine, loads persisted anchors, and starts the initial
-  /// network sync.
+  /// Bootstraps the time integrity subsystem.
   ///
-  /// Must be called once before any other API. Typically placed in `main()`:
+  /// This must be called at app launch. It performs several critical actions:
+  /// 1. Initializes the embedded IANA timezone database.
+  /// 2. Restores the last known trust anchor from secure storage.
+  /// 3. Launches the initial network synchronization cycle.
   ///
   /// ```dart
   /// void main() async {
   ///   WidgetsFlutterBinding.ensureInitialized();
-  ///   await TrustedTime.initialize();
+  ///   await TrustedTime.initialize(); // Essential first step
   ///   runApp(MyApp());
   /// }
   /// ```
-  ///
-  /// Pass a [config] to customize NTP servers, refresh intervals, quorum
-  /// requirements, and other engine parameters.
   static Future<void> initialize({
-    TrustedTimeConfig config = const TrustedTimeConfig(),
+    TrustedTimeConfig? config,
   }) async {
     if (!_timezoneInitialized) {
       tz.initializeTimeZones();
       _timezoneInitialized = true;
     }
-
-    // Short-circuit when a test mock is active — avoids network I/O,
-    // secure storage access, and platform channel calls during tests.
-    // Timezone initialization still runs above so trustedLocalTimeIn works.
     if (_override != null) return;
+
+    // Use Web-compatible configuration on Web/WASM platforms
+    if (config == null && kIsWeb) {
+      config = TrustedTimeConfig.web();
+    } else {
+      config ??= const TrustedTimeConfig();
+    }
 
     await TrustedTimeImpl.init(config);
   }
 
-  /// Returns the current trusted UTC time.
+  /// Synchronously returns the current trusted UTC time.
   ///
-  /// **Synchronous, <1µs** — no I/O or async operations. Uses the cached
-  /// hardware-anchored delta from the last successful sync.
+  /// This operation is optimized for performance, typically completing in **<50µs**.
+  /// It performs a simple arithmetic projection based on the active hardware anchor
+  /// and does not involve any platform channel or I/O overhead.
   ///
-  /// Throws [TrustedTimeNotReadyException] if [initialize] has not been
-  /// called or the initial sync failed.
+  /// Throws [TrustedTimeNotReadyException] if called before the engine has established
+  /// its initial trust anchor.
   static DateTime now() {
     if (_override != null) return _override!.now;
     return TrustedTimeImpl.instance.now();
   }
 
-  /// Returns the current trusted Unix timestamp in milliseconds since epoch.
+  /// Returns the current trusted Unix timestamp (milliseconds since epoch).
   ///
-  /// Equivalent to `TrustedTime.now().millisecondsSinceEpoch` but avoids
-  /// creating an intermediate [DateTime] object.
+  /// High-performance variant of [now] that avoids the overhead of [DateTime]
+  /// object instantiation. Recommended for high-frequency audit logging or
+  /// real-time security signatures.
   static int nowUnixMs() {
     if (_override != null) return _override!.nowUnixMs;
     return TrustedTimeImpl.instance.nowUnixMs();
   }
 
-  /// Returns the current trusted time as an ISO-8601 string.
+  /// Returns the current trusted time in ISO-8601 format.
   ///
-  /// Example: `'2024-01-01T12:00:00.000Z'`.
+  /// Optimized for transmission over network protocols or persistent logging.
+  /// Example: `2024-05-02T12:00:00.000Z`
   static String nowIso() {
     if (_override != null) return _override!.nowIso;
     return TrustedTimeImpl.instance.nowIso();
   }
 
-  /// Whether the engine currently holds a valid trust anchor.
+  /// Returns `true` if the engine has successfully established a consensus-based
+  /// trust anchor.
   ///
-  /// Returns `false` before [initialize] completes, if the initial sync
-  /// fails, or after an integrity violation is detected.
+  /// When this is `false`, [now] will throw. This state occurs during initial
+  /// synchronization or after a critical integrity failure (e.g. a device reboot).
   static bool get isTrusted {
     if (_override != null) return _override!.isTrusted;
     return TrustedTimeImpl.instance.isTrusted;
   }
 
-  /// Reactive stream of integrity violation events.
+  /// Returns the qualitative confidence grade of the current trust anchor.
   ///
-  /// Emits [IntegrityEvent]s when the engine detects clock jumps, timezone
-  /// changes, device reboots, or other temporal tampering.
+  /// A [ConfidenceLevel.high] grade indicates a consensus reached with high
+  /// source diversity and depth, whereas [ConfidenceLevel.low] may indicate
+  /// a valid but geographically or provider-limited consensus.
+  static ConfidenceLevel get confidence {
+    if (_override != null) return ConfidenceLevel.high;
+    return TrustedTimeImpl.instance.anchor?.confidence ?? ConfidenceLevel.low;
+  }
+
+  /// Returns a probabilistic "freshness" score (0.0 to 1.0).
   ///
-  /// ```dart
-  /// TrustedTime.onIntegrityLost.listen((event) {
-  ///   if (event.reason == TamperReason.systemClockJumped) {
-  ///     showWarning('Clock manipulation detected');
-  ///   }
-  /// });
-  /// ```
+  /// This score models the temporal uncertainty of the anchor. It decays
+  /// exponentially as the anchor ages. High-value transactions should check
+  /// this score and potentially trigger a [forceResync] if it falls below
+  /// an application-defined threshold (e.g. 0.5).
+  static double get confidenceScore {
+    if (_override != null) return 1.0;
+    return TrustedTimeImpl.instance.anchor?.confidenceScore ?? 0.0;
+  }
+
+  /// Advanced retrieval that enforces specific security and integrity constraints.
+  ///
+  /// Use this when your application logic requires higher guarantees than
+  /// standard consensus.
+  ///
+  /// * Set [requireSecure] to `true` to force a fail-fast error if NTS
+  ///   cryptographic authentication is unavailable.
+  /// * Set [minConfidence] to enforce a minimum qualitative trust level.
+  ///
+  /// Throws [TrustedTimeSecurityException] if requirements are not met.
+  static DateTime getTime({
+    bool requireSecure = false,
+    ConfidenceLevel minConfidence = ConfidenceLevel.low,
+  }) {
+    if (requireSecure && !isSecure) {
+      throw const TrustedTimeSecurityException(
+          'NTS-authenticated time is required but unavailable in the current session.');
+    }
+
+    final currentConfidence = confidence;
+    if (currentConfidence.index < minConfidence.index) {
+      throw TrustedTimeSecurityException(
+          'Confidence level ${currentConfidence.name} is below required ${minConfidence.name}.');
+    }
+
+    return now();
+  }
+
+  /// Returns `true` if the system is configured to support Network Time
+  /// Security (NTS).
+  static bool get supportsSecureTime {
+    if (_override != null) return false;
+    return TrustedTimeImpl.instance.supportsSecureTime;
+  }
+
+  /// Emits events when the engine detects potential temporal tampering.
+  ///
+  /// The engine proactively monitors for Monotonic-to-Wall drift. If a
+  /// system clock jump or device reboot is detected, this stream will
+  /// emit an event, and the engine will automatically enter a recovery
+  /// cycle (cache invalidation + immediate resync).
   static Stream<IntegrityEvent> get onIntegrityLost {
     if (_override != null) return _override!.onIntegrityLost;
     return TrustedTimeImpl.instance.onIntegrityLost;
   }
 
-  /// Best-effort estimated time for offline scenarios.
+  /// Indicates if the current trust anchor is backed by cryptographic
+  /// authentication (NTS/RFC 8915).
+  static bool get isSecure {
+    if (_override != null) return false;
+    return TrustedTimeImpl.instance.isSecure;
+  }
+
+  /// Exposes the specific cryptographic authentication level achieved during sync.
+  static NtsAuthLevel get authLevel {
+    if (_override != null) return NtsAuthLevel.none;
+    return TrustedTimeImpl.instance.authLevel;
+  }
+
+  /// Hooks into the internal synchronization lifecycle.
   ///
-  /// Returns a [TrustedTimeEstimate] extrapolated from the last known
-  /// anchor using the device's wall clock and estimated oscillator drift.
+  /// Register a [SyncObserver] to receive machine-readable [SyncMetrics],
+  /// including latency, uncertainty, and consensus participant counts.
+  /// Useful for enterprise-grade telemetry and observability.
+  static void registerObserver(SyncObserver observer) {
+    if (_override != null) return;
+    TrustedTimeImpl.instance.registerObserver(observer);
+  }
+
+  /// Detaches a previously registered [SyncObserver].
+  static void unregisterObserver(SyncObserver observer) {
+    if (_override != null) return;
+    TrustedTimeImpl.instance.unregisterObserver(observer);
+  }
+
+  /// Best-effort time estimation for offline or unanchored scenarios.
   ///
-  /// **NOT tamper-proof** — check [TrustedTimeEstimate.confidence] to
-  /// determine suitability for your use case. Returns `null` if no
-  /// anchor data is available.
+  /// Returns a [TrustedTimeEstimate] extrapolated from the last known state.
+  /// **WARNING**: This estimate is susceptible to wall-clock manipulation.
+  /// Use only for non-critical UI hints when [isTrusted] is false.
   static TrustedTimeEstimate? nowEstimated() {
     if (_override != null) return _override!.nowEstimated();
     return TrustedTimeImpl.instance.nowEstimated();
   }
 
-  /// Forces an immediate re-sync against all configured time sources.
+  /// Forces an immediate network synchronization cycle.
   ///
-  /// Temporarily marks the engine as untrusted until the sync completes.
-  /// Useful after detecting integrity loss or when the app returns to
-  /// the foreground after a long background period.
+  /// This purges the current anchor and forces the engine into an active
+  /// sampling phase. Useful for recovering from an integrity loss or
+  /// manually refreshing an aged anchor.
   static Future<void> forceResync() {
     if (_override != null) return Future.value();
     return TrustedTimeImpl.instance.forceResync();
   }
 
-  /// Registers OS-level background tasks for periodic anchor refreshing.
+  /// Schedules OS-level background tasks to keep the trust anchor fresh.
   ///
-  /// On Android, uses WorkManager. On iOS, uses BGTaskScheduler.
-  /// On desktop, falls back to a Dart [Timer.periodic].
-  /// On web, this is a no-op (browsers suspend background tabs).
+  /// Leverages platform-native schedulers (WorkManager on Android,
+  /// BGTaskScheduler on iOS/macOS) to perform periodic maintenance
+  /// while the app is backgrounded.
   static Future<void> enableBackgroundSync({
     Duration interval = const Duration(hours: 24),
   }) {
@@ -178,18 +266,14 @@ abstract final class TrustedTime {
     return TrustedTimeImpl.instance.enableBackgroundSync(interval);
   }
 
-  /// Returns trusted local time in a specific IANA timezone.
+  /// Returns trusted local time in the specified IANA timezone.
   ///
-  /// Uses the trusted UTC clock and converts to the target timezone
-  /// using the embedded IANA timezone database, ensuring the result
-  /// is immune to device timezone manipulation.
+  /// Converts the trusted UTC time to the target timezone using the
+  /// embedded IANA database. This ensures the result is immune to
+  /// device-level timezone manipulation.
   ///
-  /// ```dart
-  /// final tokyoTime = TrustedTime.trustedLocalTimeIn('Asia/Tokyo');
-  /// ```
-  ///
-  /// Throws [TrustedTimeNotReadyException] if the engine is not trusted.
-  /// Throws [UnknownTimezoneException] if [timezoneIdentifier] is invalid.
+  /// Throws [UnknownTimezoneException] if the [timezoneIdentifier]
+  /// is not found in the database.
   static DateTime trustedLocalTimeIn(String timezoneIdentifier) {
     if (!isTrusted) throw const TrustedTimeNotReadyException();
     tz.Location location;
@@ -201,17 +285,15 @@ abstract final class TrustedTime {
     return tz.TZDateTime.from(now(), location);
   }
 
-  /// Injects a [TrustedTimeMock] for hermetic widget or unit testing.
+  /// Injects a mock implementation for hermetic unit and widget testing.
   ///
-  /// When a mock is active, all [TrustedTime] static methods delegate to
-  /// the mock instead of the real engine.
-  ///
-  /// Only available in debug/test builds.
+  /// Under an override, all static methods of [TrustedTime] delegate to the
+  /// mock, ensuring tests are deterministic and network-independent.
   static void overrideForTesting(TrustedTimeMock mock) {
     setTestOverride(mock);
   }
 
-  /// Removes any active mock override and restores production behavior.
+  /// Restores standard production behavior by removing any active mock override.
   static void resetOverride() {
     setTestOverride(null);
   }

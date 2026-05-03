@@ -1,10 +1,8 @@
-import '../models.dart';
+import '../domain/time_sample.dart';
+import '../domain/time_source.dart';
 
-/// Web/stub NTP source — NTP (UDP) is unavailable on this platform.
-///
-/// The [SyncEngine._querySafe] catch clause handles the thrown error
-/// gracefully, so the engine will simply rely on HTTPS sources on web.
-final class NtpSource implements TrustedTimeSource {
+/// NTP time source stub — actual implementation in `ntp_source_io.dart`.
+final class NtpSource implements TimeSource {
   const NtpSource(this._host);
 
   final String _host;
@@ -13,7 +11,9 @@ final class NtpSource implements TrustedTimeSource {
   String get id => 'ntp:$_host';
 
   @override
-  Future<DateTime> queryUtc() async {
-    throw UnsupportedError('NTP (UDP) is not available on this platform.');
-  }
+  String get groupId => _host;
+
+  @override
+  Future<TimeSample> getTime() =>
+      throw UnimplementedError('NTP requires dart:io');
 }

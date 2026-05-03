@@ -1,5 +1,40 @@
-## 1.2.1
+# Changelog
 
+## [2.0.0]
+
+### Added
+- **Probabilistic Trust Modeling**: Introduced `ConfidenceLevel` (Low, Medium, High) and `confidenceScore` with exponential decay to model temporal uncertainty over time.
+- **Self-Healing Consensus Engine**: 
+    - **Adaptive Thresholds**: Dynamic sample filtering based on 3x median uncertainty.
+    - **Exponential Source Cooldown**: Failure-count based blacklisting ($2^{failureCount}$ min) to isolate consistently unreliable authorities.
+    - **Consensus Stability Guard**: Incremental processing now requires $N=2$ (or $N=3$ under high variance) consecutive matching intervals before early-exit.
+- **NTS (RFC 8915) Authenticated Time**: Pure-Dart implementation of Network Time Security for tamper-proof NTP synchronization (Cryptographic Preview).
+- **Enterprise Observability**: 
+    - Introduced `SyncMetrics` for machine-readable telemetry (latency, uncertainty, diversity, depth).
+    - Added structured **Confidence Breakdown** for deep-field debugging of trust establishment.
+- **Strict Security Intent API**: New `TrustedTime.getTime({bool requireSecure})` for fail-fast cryptographic guarantees.
+- **Capability Discovery**: Added `supportsSecureTime` to allow graceful application fallback when NTS is unavailable.
+- **Robust Desktop Support**: Verified native implementations for macOS, Windows, and Linux, ensuring consistent monotonic clock behavior across all six Flutter platforms.
+- **Intelligent Background Sync**: Scheduler-backed synchronization on mobile (WorkManager for Android, BGTaskScheduler for iOS) with safe `Timer`-based fallbacks for desktop.
+
+### Changed
+- **Domain Refactor**: Split `TimeSample` into `TimeInterval` (pure mathematical primitive) and `TimeSample` (enriched telemetry wrapper).
+- **Integrity Feedback Loop**: Anomaly detection now triggers immediate state purge (cache invalidation) and high-priority synchronization.
+- **Hardened Consensus**: Strictly enforced group-diversity requirements to mitigate median-poisoning and correlated failures.
+- **Architecture Decisions**: Published comprehensive ADRs (0001-0004) covering monotonic strategy, Marzullo consensus, NTS implementation, and background sync.
+- **Unified Darwin Layout**: Migrated iOS and macOS native implementations to a shared SwiftPM-ready directory for perfect pub.dev compliance.
+
+### Fixed
+- **Marzullo Engine Correctness**: 
+  - Fixed tie-breaking to use closed-interval semantics (depth counting).
+  - Corrected `participantCount` to report unique source IDs instead of raw overlap depth.
+  - Implemented 1ms uncertainty floor to prevent downstream calculation errors.
+- **Platform Hardening**: 
+  - Windows: Migrated to `GetTickCount64` and subclassed `WM_TIMECHANGE` for robust integrity monitoring.
+  - Linux: Switched to `CLOCK_BOOTTIME` and `timerfd` to correctly track time during system suspend.
+  - Thread Safety: Re-affirmed and enforced main-thread dispatching for all Darwin platform event channels.
+
+## 1.2.1
 
 **Critical enhancements**
 - iOS/macOS: Enhanced channel initialization avoiding naming mismatch

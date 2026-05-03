@@ -25,13 +25,15 @@ void main() {
     });
 
     test('all TamperReason variants exist', () {
-      expect(TamperReason.values, containsAll([
-        TamperReason.systemClockJumped,
-        TamperReason.timezoneChanged,
-        TamperReason.deviceRebooted,
-        TamperReason.forcedNtpSync,
-        TamperReason.unknown,
-      ]));
+      expect(
+          TamperReason.values,
+          containsAll([
+            TamperReason.systemClockJumped,
+            TamperReason.timezoneChanged,
+            TamperReason.deviceRebooted,
+            TamperReason.forcedNtpSync,
+            TamperReason.unknown,
+          ]));
     });
   });
 
