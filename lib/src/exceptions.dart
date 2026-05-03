@@ -8,8 +8,7 @@ final class TrustedTimeNotReadyException implements Exception {
   const TrustedTimeNotReadyException();
 
   @override
-  String toString() =>
-      'TrustedTime is not yet trusted. '
+  String toString() => 'TrustedTime is not yet trusted. '
       'Await initialize() and ensure sync succeeded.';
 }
 
@@ -43,4 +42,21 @@ final class UnknownTimezoneException implements Exception {
 
   @override
   String toString() => 'Unknown timezone: $identifier';
+}
+
+/// Thrown when a secure time query is requested but the engine cannot provide
+/// cryptographically authenticated time (e.g. NTS failed).
+final class TrustedTimeSecurityException implements Exception {
+  const TrustedTimeSecurityException(this.message);
+  final String message;
+  @override
+  String toString() => 'TrustedTimeSecurityException: $message';
+}
+
+/// Thrown when local state restoration or persistence fails.
+final class TrustedTimePersistenceException implements Exception {
+  const TrustedTimePersistenceException(this.message);
+  final String message;
+  @override
+  String toString() => 'TrustedTimePersistenceException: $message';
 }

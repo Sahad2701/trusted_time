@@ -81,7 +81,8 @@ void main() {
       expect(TrustedTime.isTrusted, isTrue);
     });
 
-    test('trustedLocalTimeIn throws TrustedTimeNotReadyException when not trusted',
+    test(
+        'trustedLocalTimeIn throws TrustedTimeNotReadyException when not trusted',
         () async {
       await TrustedTime.initialize();
       mock = TrustedTimeMock(initial: DateTime.utc(2024, 6, 15, 12));

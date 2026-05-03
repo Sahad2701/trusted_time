@@ -160,7 +160,6 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-
             _sectionHeader('Section 2 — Tamper Forensics (F1)'),
             _card(
               child: _lastEvent == null
@@ -179,7 +178,6 @@ class _HomePageState extends State<HomePage> {
                       ],
                     ),
             ),
-
             _sectionHeader('Section 3 — Offline Estimate (F2)'),
             _card(
               child: Column(
@@ -203,7 +201,6 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-
             _sectionHeader('Section 4 — Timezone-Proof Local Time (F6)'),
             _card(
               child: Column(
@@ -228,7 +225,6 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-
             _sectionHeader('Section 5 — Background Sync (F4)'),
             _card(
               child: Row(
