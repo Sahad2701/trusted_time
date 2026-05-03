@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.0.2]
+
+### Fixed
+- **Documentation**: Comprehensive enhancement of all public API dartdoc comments with detailed descriptions.
+  - Replaced 8+ placeholder "Documented." comments with full documentation
+  - Enhanced `TrustedTimeMock` constructor and method documentation
+  - Added detailed docs for `TrustAnchor`, `SyncMetrics`, `ConsensusResult`
+  - Documented exception classes and configuration classes
+  - Improved public API coverage for pub.dev scoring
+
 ## [2.0.1]
 
 ### Fixed
