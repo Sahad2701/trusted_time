@@ -265,7 +265,7 @@ void main() {
       });
 
       test('participants set uses object identity not source ID', () {
-        // Two different sample objects from same source
+        // Two different sample objects from same source, plus another source
         final sample1 = createSample(
           id: 'same',
           utc: baseTime,
@@ -276,13 +276,17 @@ void main() {
           utc: baseTime.add(const Duration(milliseconds: 10)),
           uncertaintyMs: 50,
         );
-        final result = engine.resolve([sample1, sample2]);
+        final sample3 = createSample(
+          id: 'other',
+          utc: baseTime,
+          uncertaintyMs: 50,
+        );
+        final result = engine.resolve([sample1, sample2, sample3]);
         if (result == null) {
           fail('Expected non-null result');
         }
-        // Both samples overlap the consensus window, so both can be in participants
-        expect(result.participants.length, greaterThanOrEqualTo(1));
-        expect(result.participants.length, lessThanOrEqualTo(2));
+        // Should have 2 participants (one per unique source)
+        expect(result.participants.length, equals(2));
       });
     });
 

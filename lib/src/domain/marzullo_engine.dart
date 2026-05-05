@@ -130,6 +130,9 @@ final class MarzulloEngine {
     final activeSourceCounts = <String, int>{};
     final bestSamples = <TimeSample>{};
 
+    // Track the best end point during the sweep
+    // When we find the best start, the best end is the first upper endpoint
+    // that causes the unique overlap to drop below bestUniqueOverlap
     for (final ep in endpoints) {
       if (ep.type == _EndpointType.lower) {
         // Increment count for this source
@@ -152,6 +155,16 @@ final class MarzulloEngine {
           }
         }
       } else {
+        // When processing an upper endpoint, check if this could be the best end
+        // for the current best start
+        if (bestStart != null && bestEnd == null && ep.timeMs >= bestStart) {
+          final uniqueOverlap = activeSourceCounts.length;
+          if (uniqueOverlap < bestUniqueOverlap) {
+            // We've dropped below the best overlap, so the previous upper endpoint
+            // was the best end point
+            bestEnd = ep.timeMs;
+          }
+        }
         if (activeSourceCounts[ep.sample.sourceId] == 1) {
           activeSourceCounts.remove(ep.sample.sourceId);
         } else {
@@ -161,32 +174,23 @@ final class MarzulloEngine {
       }
     }
 
-    // Find the best end point corresponding to the best start
-    if (bestStart != null) {
+    // If we never found a best end (e.g., the best overlap extends to the end),
+    // use the last upper endpoint
+    if (bestStart != null && bestEnd == null) {
       for (final ep in endpoints.reversed) {
-        if (ep.type == _EndpointType.upper && ep.timeMs >= bestStart) {
-          // Check if this endpoint corresponds to the best overlap period
-          // by counting how many intervals are active at this point
-          final activeAtEnd = endpoints
-              .where(
-                (e) => e.type == _EndpointType.lower && e.timeMs <= ep.timeMs,
-              )
-              .map((e) => e.sample.sourceId)
-              .toSet()
-              .length;
-          if (activeAtEnd >= bestUniqueOverlap) {
-            bestEnd = ep.timeMs;
-            break;
-          }
+        if (ep.type == _EndpointType.upper) {
+          bestEnd = ep.timeMs;
+          break;
         }
       }
     }
 
-    // Rebuild bestSamples with all samples in the full overlap window [bestStart, bestEnd]
+    // Rebuild bestSamples with all samples that overlap the consensus window [bestStart, bestEnd]
     if (bestStart != null && bestEnd != null) {
       bestSamples.clear();
       for (final s in validSamples) {
-        if (s.interval.startMs <= bestEnd && bestStart <= s.interval.endMs) {
+        // Check if sample interval overlaps the consensus window
+        if (s.interval.startMs <= bestEnd && s.interval.endMs >= bestStart) {
           bestSamples.add(s);
         }
       }
@@ -226,14 +230,18 @@ final class MarzulloEngine {
       }
     }
 
-    // Identify actual participants: samples whose intervals contain the consensus midpoint
-    // Only consider samples that were in the best overlap window
-    final participants = bestSamples.where((s) {
-      return s.interval.startMs <= midMs && midMs <= s.interval.endMs;
-    }).toSet();
+    // Participants are samples whose intervals contain the consensus midpoint
+    // Keep only one sample per unique source ID
+    final participantsMap = <String, TimeSample>{};
+    for (final s in bestSamples) {
+      if (s.interval.startMs <= midMs && midMs <= s.interval.endMs) {
+        participantsMap[s.sourceId] = s;
+      }
+    }
+    final participants = participantsMap.values.toSet();
 
     // participantCount should be the number of unique sources in participants
-    final participantCount = participants.map((s) => s.sourceId).toSet().length;
+    final participantCount = participants.length;
 
     return ConsensusResult(
       utc: DateTime.fromMillisecondsSinceEpoch(midMs, isUtc: true),
