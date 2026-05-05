@@ -229,14 +229,18 @@ final class MarzulloEngine {
     }
 
     // Identify actual participants: samples whose intervals contain the consensus midpoint
-    final participants = bestSamples.where((s) {
+    // Only consider samples that were in the best overlap window
+    final participants = validSamples.where((s) {
       return s.interval.startMs <= midMs && midMs <= s.interval.endMs;
     }).toSet();
+
+    // participantCount should be the number of unique sources in participants
+    final participantCount = participants.map((s) => s.sourceId).toSet().length;
 
     return ConsensusResult(
       utc: DateTime.fromMillisecondsSinceEpoch(midMs, isUtc: true),
       uncertaintyMs: max(1, uncertaintyMs),
-      participantCount: participants.length,
+      participantCount: participantCount,
       groupCount: groupCount,
       authLevel: effectiveAuth,
       confidence: confidence,
