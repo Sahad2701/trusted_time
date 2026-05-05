@@ -279,8 +279,8 @@ void main() {
         final result = engine.resolve([sample1, sample2]);
         expect(result, isNotNull);
         // Both samples overlap the consensus window, so both can be in participants
-        expect(result!.participants.length, greaterThanOrEqualTo(1));
-        expect(result!.participants.length, lessThanOrEqualTo(2));
+        expect(result.participants.length, greaterThanOrEqualTo(1));
+        expect(result.participants.length, lessThanOrEqualTo(2));
       });
     });
 
