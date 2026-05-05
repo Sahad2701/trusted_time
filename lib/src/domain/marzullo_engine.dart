@@ -182,6 +182,17 @@ final class MarzulloEngine {
       }
     }
 
+    // Rebuild bestSamples with all samples in the full overlap window [bestStart, bestEnd]
+    if (bestStart != null && bestEnd != null) {
+      bestSamples.clear();
+      for (final s in validSamples) {
+        if (s.interval.startMs <= bestEnd &&
+            bestStart <= s.interval.endMs) {
+          bestSamples.add(s);
+        }
+      }
+    }
+
     // A consensus is only valid if it reaches the required population depth.
     if (bestUniqueOverlap < requiredQuorum ||
         bestStart == null ||

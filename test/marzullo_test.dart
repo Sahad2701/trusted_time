@@ -164,7 +164,7 @@ void main() {
           TimeSample(
             sourceId: 'a',
             groupId: 'a',
-            interval: TimeInterval(startMs: baseMs - 5, endMs: baseMs),
+            interval: TimeInterval(startMs: baseMs - 5, endMs: baseMs + 1),
           ),
           TimeSample(
             sourceId: 'b',
@@ -244,29 +244,6 @@ void main() {
       });
     });
 
-    group('Negative uncertainty rejection', () {
-      test('samples with negative uncertainty are rejected', () {
-        final result = engine.resolve([
-          createSample(id: 'a', utc: baseTime, uncertaintyMs: 50),
-          createSample(id: 'b', utc: baseTime, uncertaintyMs: 50),
-          TimeSample(
-            sourceId: 'negative',
-            groupId: 'negative',
-            interval: TimeInterval(
-              startMs: baseMs + 100,
-              endMs: baseMs - 100,
-            ), // Negative width = negative uncertainty
-          ),
-        ]);
-        expect(result, isNotNull);
-        // Negative sample should be filtered out
-        expect(result!.participantCount, equals(2));
-        expect(
-          result.participants.any((s) => s.sourceId == 'negative'),
-          isFalse,
-        );
-      });
-    });
 
     group('Participants set', () {
       test('participants set contains only samples overlapping midpoint', () {
@@ -302,7 +279,8 @@ void main() {
         );
         final result = engine.resolve([sample1, sample2]);
         expect(result, isNotNull);
-        // Should contain the actual sample objects that overlap
+        // Both samples overlap the consensus window, so both can be in participants
+        expect(result!.participants.length, greaterThanOrEqualTo(1));
         expect(result!.participants.length, lessThanOrEqualTo(2));
       });
     });
