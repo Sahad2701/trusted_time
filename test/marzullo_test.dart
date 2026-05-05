@@ -244,7 +244,6 @@ void main() {
       });
     });
 
-
     group('Participants set', () {
       test('participants set contains only samples overlapping midpoint', () {
         final result = engine.resolve([

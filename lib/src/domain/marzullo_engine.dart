@@ -186,8 +186,7 @@ final class MarzulloEngine {
     if (bestStart != null && bestEnd != null) {
       bestSamples.clear();
       for (final s in validSamples) {
-        if (s.interval.startMs <= bestEnd &&
-            bestStart <= s.interval.endMs) {
+        if (s.interval.startMs <= bestEnd && bestStart <= s.interval.endMs) {
           bestSamples.add(s);
         }
       }
