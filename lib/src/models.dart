@@ -26,7 +26,6 @@ enum ConfidenceLevel {
 }
 
 @immutable
-
 /// Configuration parameters for the [TrustedTime] engine.
 ///
 /// This class defines the behavioral policy of the engine, including quorum
@@ -40,7 +39,7 @@ final class TrustedTimeConfig {
       'https://www.cloudflare.com',
       'https://time.cloudflare.com',
       'https://www.apple.com',
-      'https://www.microsoft.com'
+      'https://www.microsoft.com',
     ],
     this.ntsServers = const ['time.cloudflare.com'],
     this.ntsPort = 4460,
@@ -141,7 +140,6 @@ final class TrustedTimeConfig {
 }
 
 @immutable
-
 /// A hardware-anchored snapshot representing a verified network consensus.
 ///
 /// This model acts as the "source of truth" for the engine. It links the
@@ -171,8 +169,8 @@ final class TrustAnchor {
 
       final confidence =
           (confIdx >= 0 && confIdx < ConfidenceLevel.values.length)
-              ? ConfidenceLevel.values[confIdx]
-              : ConfidenceLevel.none;
+          ? ConfidenceLevel.values[confIdx]
+          : ConfidenceLevel.none;
 
       return TrustAnchor(
         networkUtcMs: json['networkUtcMs'] as int,
@@ -224,17 +222,16 @@ final class TrustAnchor {
 
   /// Serializes the anchor for secure local storage.
   Map<String, dynamic> toJson() => {
-        'networkUtcMs': networkUtcMs,
-        'uptimeMs': uptimeMs,
-        'wallMs': wallMs,
-        'uncertaintyMs': uncertaintyMs,
-        'authLevel': authLevel.index,
-        'confidence': confidence.index,
-      };
+    'networkUtcMs': networkUtcMs,
+    'uptimeMs': uptimeMs,
+    'wallMs': wallMs,
+    'uncertaintyMs': uncertaintyMs,
+    'authLevel': authLevel.index,
+    'confidence': confidence.index,
+  };
 }
 
 @immutable
-
 /// Diagnostic metrics captured during a synchronization cycle.
 final class SyncMetrics {
   /// Creates a new [SyncMetrics] instance with diagnostic data from a synchronization cycle.

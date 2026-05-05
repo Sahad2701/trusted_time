@@ -28,8 +28,8 @@ void setTestOverride(TrustedTimeMock? mock) => testOverride = mock;
 final class TrustedTimeMock {
   /// Creates a new mock with an initial UTC timestamp.
   TrustedTimeMock({required DateTime initial})
-      : _now = initial.toUtc(),
-        _trusted = true;
+    : _now = initial.toUtc(),
+      _trusted = true;
 
   DateTime _now;
   bool _trusted;

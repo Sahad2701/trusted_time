@@ -11,9 +11,9 @@ void main() {
     setUp(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (methodCall) async {
-        if (methodCall.method == 'getUptimeMs') return 42000;
-        return null;
-      });
+            if (methodCall.method == 'getUptimeMs') return 42000;
+            return null;
+          });
     });
 
     tearDown(() {

@@ -92,11 +92,13 @@ final class IntegrityMonitor {
 
     final divergence = (elapsedUptime - elapsedWall).abs();
     if (divergence > 5000) {
-      _emit(IntegrityEvent(
-        reason: TamperReason.systemClockJumped,
-        detectedAt: DateTime.now().toUtc(),
-        drift: Duration(milliseconds: divergence),
-      ));
+      _emit(
+        IntegrityEvent(
+          reason: TamperReason.systemClockJumped,
+          detectedAt: DateTime.now().toUtc(),
+          drift: Duration(milliseconds: divergence),
+        ),
+      );
       return true;
     }
     return false;
@@ -113,39 +115,48 @@ final class IntegrityMonitor {
 
       switch (type) {
         case 'clockJumped':
-          _emit(IntegrityEvent(
-            reason: TamperReason.systemClockJumped,
-            detectedAt: DateTime.now().toUtc(),
-            drift: driftMs != null ? Duration(milliseconds: driftMs) : null,
-          ));
+          _emit(
+            IntegrityEvent(
+              reason: TamperReason.systemClockJumped,
+              detectedAt: DateTime.now().toUtc(),
+              drift: driftMs != null ? Duration(milliseconds: driftMs) : null,
+            ),
+          );
         case 'reboot':
-          _emit(IntegrityEvent(
-            reason: TamperReason.deviceRebooted,
-            detectedAt: DateTime.now().toUtc(),
-          ));
+          _emit(
+            IntegrityEvent(
+              reason: TamperReason.deviceRebooted,
+              detectedAt: DateTime.now().toUtc(),
+            ),
+          );
         case 'timezoneChanged':
           final now = DateTime.now();
           final prev = _lastTimezoneOffset;
           _lastTimezoneOffset = now.timeZoneOffset;
-          _emit(IntegrityEvent(
-            reason: TamperReason.timezoneChanged,
-            detectedAt: now.toUtc(),
-            drift: prev != null
-                ? Duration(
-                    milliseconds:
-                        (now.timeZoneOffset - prev).inMilliseconds.abs(),
-                  )
-                : null,
-          ));
+          _emit(
+            IntegrityEvent(
+              reason: TamperReason.timezoneChanged,
+              detectedAt: now.toUtc(),
+              drift: prev != null
+                  ? Duration(
+                      milliseconds: (now.timeZoneOffset - prev).inMilliseconds
+                          .abs(),
+                    )
+                  : null,
+            ),
+          );
         default:
-          _emit(IntegrityEvent(
-            reason: TamperReason.unknown,
-            detectedAt: DateTime.now().toUtc(),
-          ));
+          _emit(
+            IntegrityEvent(
+              reason: TamperReason.unknown,
+              detectedAt: DateTime.now().toUtc(),
+            ),
+          );
       }
     } catch (e, st) {
       debugPrint(
-          '[TrustedTime] Critical failure in native event dispatcher: $e\n$st');
+        '[TrustedTime] Critical failure in native event dispatcher: $e\n$st',
+      );
     }
   }
 

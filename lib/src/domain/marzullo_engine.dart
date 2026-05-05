@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import '../../trusted_time.dart';
 
 @immutable
-
 /// The resolved state of a consensus cycle.
 ///
 /// Encapsulates the verified UTC time, the calculated precision (uncertainty),
@@ -16,6 +15,7 @@ final class ConsensusResult {
     required this.uncertaintyMs,
     required this.participantCount,
     required this.groupCount,
+    required this.participants,
     this.authLevel = NtsAuthLevel.none,
     this.confidence = ConfidenceLevel.low,
     this.interval,
@@ -32,6 +32,10 @@ final class ConsensusResult {
 
   /// Number of distinct administrative groups (e.g. ASNs) in the consensus.
   final int groupCount;
+
+  /// The set of samples that participated in the consensus.
+  /// A sample is considered a participant if its interval contains the consensus midpoint.
+  final Set<TimeSample> participants;
 
   /// The highest common authentication level achieved across the consensus group.
   final NtsAuthLevel authLevel;
@@ -84,11 +88,14 @@ final class MarzulloEngine {
   /// the [minQuorumRatio] and [minGroupCount] constraints. Returns `null`
   /// if the samples are too divergent or the population is insufficient.
   ConsensusResult? resolve(List<TimeSample> samples) {
-    // We filter out "noisy" sources early. Inclusion of high-uncertainty
-    // sources artificially increases the consensus width without adding
-    // valuable information.
+    // Filter out invalid samples (negative uncertainty indicates clock errors)
+    // and noisy sources with excessive uncertainty.
     final validSamples = samples
-        .where((s) => s.uncertaintyMs <= maxAllowedUncertaintyMs)
+        .where(
+          (s) =>
+              s.uncertaintyMs >= 0 &&
+              s.uncertaintyMs <= maxAllowedUncertaintyMs,
+        )
         .toList();
 
     final totalSources = validSamples.length;
@@ -114,40 +121,83 @@ final class MarzulloEngine {
       return a.type == _EndpointType.upper ? -1 : 1;
     });
 
-    var bestOverlap = 0;
+    var bestUniqueOverlap = 0;
     int? bestStart;
     int? bestEnd;
-    var currentOverlap = 0;
 
-    final activeSamples = <TimeSample>{};
+    // Multiset tracking: sourceId -> count of active intervals from that source
+    // Multiple samples from same source count as one unique participant
+    final activeSourceCounts = <String, int>{};
     final bestSamples = <TimeSample>{};
 
     for (final ep in endpoints) {
       if (ep.type == _EndpointType.lower) {
-        currentOverlap++;
-        activeSamples.add(ep.sample);
+        // Increment count for this source
+        activeSourceCounts[ep.sample.sourceId] =
+            (activeSourceCounts[ep.sample.sourceId] ?? 0) + 1;
 
-        if (currentOverlap > bestOverlap) {
-          bestOverlap = currentOverlap;
+        final uniqueOverlap = activeSourceCounts.length;
+        // Optimize on unique source count for better consensus quality
+        if (uniqueOverlap > bestUniqueOverlap) {
+          bestUniqueOverlap = uniqueOverlap;
           bestStart = ep.timeMs;
           bestEnd = null;
           bestSamples
             ..clear()
-            ..addAll(activeSamples);
+            ..addAll(
+              endpoints
+                  .where((e) => e.timeMs <= ep.timeMs)
+                  .where((e) => e.type == _EndpointType.lower)
+                  .map((e) => e.sample)
+                  .toSet()
+                  .where((s) {
+                    // Only include if this sample's interval contains the start point
+                    final otherLower = endpoints.firstWhere(
+                      (e) => e.sample == s && e.type == _EndpointType.lower,
+                    );
+                    final otherUpper = endpoints.firstWhere(
+                      (e) => e.sample == s && e.type == _EndpointType.upper,
+                    );
+                    return otherLower.timeMs <= bestStart! &&
+                        bestStart <= otherUpper.timeMs;
+                  }),
+            );
         }
       } else {
-        if (currentOverlap == bestOverlap &&
-            bestStart != null &&
-            bestEnd == null) {
-          bestEnd = ep.timeMs;
+        if (activeSourceCounts[ep.sample.sourceId] == 1) {
+          activeSourceCounts.remove(ep.sample.sourceId);
+        } else {
+          activeSourceCounts[ep.sample.sourceId] =
+              activeSourceCounts[ep.sample.sourceId]! - 1;
         }
-        activeSamples.remove(ep.sample);
-        currentOverlap--;
+      }
+    }
+
+    // Find the best end point corresponding to the best start
+    if (bestStart != null) {
+      for (final ep in endpoints.reversed) {
+        if (ep.type == _EndpointType.upper && ep.timeMs >= bestStart) {
+          // Check if this endpoint corresponds to the best overlap period
+          // by counting how many intervals are active at this point
+          final activeAtEnd = endpoints
+              .where(
+                (e) => e.type == _EndpointType.lower && e.timeMs <= ep.timeMs,
+              )
+              .map((e) => e.sample.sourceId)
+              .toSet()
+              .length;
+          if (activeAtEnd >= bestUniqueOverlap) {
+            bestEnd = ep.timeMs;
+            break;
+          }
+        }
       }
     }
 
     // A consensus is only valid if it reaches the required population depth.
-    if (bestOverlap < requiredQuorum || bestStart == null || bestEnd == null) {
+    if (bestUniqueOverlap < requiredQuorum ||
+        bestStart == null ||
+        bestEnd == null) {
       return null;
     }
 
@@ -160,7 +210,7 @@ final class MarzulloEngine {
     var confidence = ConfidenceLevel.low;
     if (groupCount >= minGroupCount) {
       confidence = ConfidenceLevel.medium;
-      if (bestOverlap >= requiredQuorum + 1) {
+      if (bestUniqueOverlap >= requiredQuorum + 1) {
         confidence = ConfidenceLevel.high;
       }
     }
@@ -178,14 +228,20 @@ final class MarzulloEngine {
       }
     }
 
+    // Identify actual participants: samples whose intervals contain the consensus midpoint
+    final participants = bestSamples.where((s) {
+      return s.interval.startMs <= midMs && midMs <= s.interval.endMs;
+    }).toSet();
+
     return ConsensusResult(
       utc: DateTime.fromMillisecondsSinceEpoch(midMs, isUtc: true),
       uncertaintyMs: max(1, uncertaintyMs),
-      participantCount: bestSamples.length,
+      participantCount: participants.length,
       groupCount: groupCount,
       authLevel: effectiveAuth,
       confidence: confidence,
       interval: TimeInterval(startMs: bestStart, endMs: bestEnd),
+      participants: participants,
     );
   }
 }

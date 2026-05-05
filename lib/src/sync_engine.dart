@@ -30,15 +30,15 @@ final class SyncEngine {
     required MonotonicClock clock,
     SyncObserver? observer,
     ConsensusCache? cache,
-  })  : _config = config,
-        _clock = clock,
-        _observer = observer,
-        _cache = cache,
-        _engine = MarzulloEngine(
-          minQuorumRatio: config.minQuorumRatio,
-          maxAllowedUncertaintyMs: config.maxAllowedUncertaintyMs,
-          minGroupCount: config.minGroupCount,
-        );
+  }) : _config = config,
+       _clock = clock,
+       _observer = observer,
+       _cache = cache,
+       _engine = MarzulloEngine(
+         minQuorumRatio: config.minQuorumRatio,
+         maxAllowedUncertaintyMs: config.maxAllowedUncertaintyMs,
+         minGroupCount: config.minGroupCount,
+       );
 
   final TrustedTimeConfig _config;
   final MonotonicClock _clock;
@@ -88,11 +88,13 @@ final class SyncEngine {
       var pendingQueries = activeSources.length;
       if (pendingQueries == 0) {
         throw TrustedTimeSyncException(
-            'All available time sources are currently in exponential cooldown due to persistent failures.');
+          'All available time sources are currently in exponential cooldown due to persistent failures.',
+        );
       }
 
       TimeInterval? lastStabilityInterval;
       var stableCount = 0;
+      var rejectedInvalid = 0;
 
       // 1. Process samples sequentially via a stream to preserve determinism
       // and prevent race conditions during list mutation. This ensures that
@@ -102,6 +104,26 @@ final class SyncEngine {
         if (completer.isCompleted) return;
 
         if (sample != null) {
+          // Filter samples with negative uncertainty early, before both Marzullo
+          // and the anchor reduce. Negative uncertainty indicates clock errors.
+          if (sample.uncertaintyMs < 0) {
+            rejectedInvalid++;
+            _observer?.onSourceFailed(
+              sample.sourceId,
+              'Sample rejected: negative uncertainty (RTT)',
+            );
+            pendingQueries--;
+            if (pendingQueries == 0 && !completer.isCompleted) {
+              _finalizeSync(
+                samples,
+                rejectedInvalid,
+                activeSources.length,
+                completer,
+              );
+            }
+            return;
+          }
+
           samples.add(sample);
           _observer?.onSampleReceived(sample);
 
@@ -116,8 +138,10 @@ final class SyncEngine {
             // likely malicious or experiencing extreme network jitter.
             if (sample.uncertaintyMs > max(medianU * 3, 500)) {
               samples.remove(sample);
-              _observer?.onSourceFailed(sample.sourceId,
-                  'Adaptive exclusion: statistical outlier detected');
+              _observer?.onSourceFailed(
+                sample.sourceId,
+                'Adaptive exclusion: statistical outlier detected',
+              );
             }
           }
 
@@ -125,10 +149,12 @@ final class SyncEngine {
           if (result != null) {
             // Stability Check: Escalates quorum requirements if high variance
             // is detected, ensuring we don't anchor to a jittery consensus.
-            final varianceDetected = samples.any((s) =>
-                (s.interval.midpoint - result.utc.millisecondsSinceEpoch)
-                    .abs() >
-                500);
+            final varianceDetected = samples.any(
+              (s) =>
+                  (s.interval.midpoint - result.utc.millisecondsSinceEpoch)
+                      .abs() >
+                  500,
+            );
             final requiredStability = varianceDetected ? 3 : 2;
 
             if (lastStabilityInterval == result.interval) {
@@ -143,8 +169,9 @@ final class SyncEngine {
               // is reached to minimize power and network consumption.
               if (_config.earlyExit || samples.length == activeSources.length) {
                 swSync.stop();
-                unawaited(_completeSync(
-                    result, swSync.elapsedMilliseconds, completer));
+                unawaited(
+                  _completeSync(result, swSync.elapsedMilliseconds, completer),
+                );
               }
             }
           }
@@ -152,44 +179,51 @@ final class SyncEngine {
 
         pendingQueries--;
         if (pendingQueries == 0 && !completer.isCompleted) {
-          // All sources responded but we haven't reached stability.
-          // Try one final resolve with all samples before failing.
-          final finalResult = _engine.resolve(samples);
-          if (finalResult != null && samples.length >= _config.minimumQuorum) {
-            swSync.stop();
-            unawaited(_completeSync(
-                finalResult, swSync.elapsedMilliseconds, completer));
-          } else {
-            completer.completeError(TrustedTimeSyncException(
-                'Failed to reach quorum after exhausting all healthy sources.'));
-          }
+          _finalizeSync(
+            samples,
+            rejectedInvalid,
+            activeSources.length,
+            completer,
+            elapsedMs: swSync.elapsedMilliseconds,
+          );
         }
       });
 
       // 2. Launch racing queries
       for (final source in activeSources) {
-        unawaited(_querySafe(source).then((s) {
-          if (!streamClosed && !sampleController.isClosed) {
-            sampleController.add(s);
-          }
-        }).catchError((Object e) {
-          _observer?.onSourceFailed(source.id, e);
-          if (!streamClosed && !sampleController.isClosed) {
-            sampleController
-                .add(null); // Ensure pendingQueries still decrements
-          }
-        }));
+        unawaited(
+          _querySafe(source)
+              .then((s) {
+                if (!streamClosed && !sampleController.isClosed) {
+                  sampleController.add(s);
+                }
+              })
+              .catchError((Object e) {
+                _observer?.onSourceFailed(source.id, e);
+                if (!streamClosed && !sampleController.isClosed) {
+                  sampleController.add(
+                    null,
+                  ); // Ensure pendingQueries still decrements
+                }
+              }),
+        );
       }
 
       final anchor = await completer.future.timeout(
-          _config.maxLatency + const Duration(seconds: 1), onTimeout: () {
-        if (!completer.isCompleted && samples.length >= _config.minimumQuorum) {
-          final result = _engine.resolve(samples);
-          if (result != null) return _createAnchor(result);
-        }
-        throw TrustedTimeSyncException(
-            'Synchronization timed out before reaching a stable quorum.');
-      });
+        _config.maxLatency + const Duration(seconds: 1),
+        onTimeout: () {
+          if (!completer.isCompleted &&
+              samples.length >= _config.minimumQuorum) {
+            final result = _engine.resolve(samples);
+            if (result != null) {
+              return _createAnchor(result);
+            }
+          }
+          throw TrustedTimeSyncException(
+            'Synchronization timed out before reaching a stable quorum.',
+          );
+        },
+      );
 
       _syncAttempts = 0;
       _cache?.update(anchor);
@@ -207,26 +241,31 @@ final class SyncEngine {
     }
   }
 
-  Future<void> _completeSync(ConsensusResult result, int latencyMs,
-      Completer<TrustAnchor> completer) async {
+  Future<void> _completeSync(
+    ConsensusResult result,
+    int latencyMs,
+    Completer<TrustAnchor> completer,
+  ) async {
     if (completer.isCompleted) return;
 
     try {
       final anchor = await _createAnchor(result);
       _observer?.onConsensusReached(result);
 
-      _observer?.onMetricsReported(SyncMetrics(
-        latencyMs: latencyMs,
-        uncertaintyMs: result.uncertaintyMs,
-        participantCount: result.participantCount,
-        groupCount: result.groupCount,
-        confidence: result.confidence,
-        confidenceBreakdown: {
-          'depth': result.participantCount / _sources.length,
-          'diversity': result.groupCount / 2.0,
-          'stability': 1.0,
-        },
-      ));
+      _observer?.onMetricsReported(
+        SyncMetrics(
+          latencyMs: latencyMs,
+          uncertaintyMs: result.uncertaintyMs,
+          participantCount: result.participantCount,
+          groupCount: result.groupCount,
+          confidence: result.confidence,
+          confidenceBreakdown: {
+            'depth': result.participantCount / _sources.length,
+            'diversity': result.groupCount / 2.0,
+            'stability': 1.0,
+          },
+        ),
+      );
 
       if (!completer.isCompleted) completer.complete(anchor);
     } catch (e) {
@@ -235,6 +274,15 @@ final class SyncEngine {
   }
 
   Future<TrustAnchor> _createAnchor(ConsensusResult result) async {
+    // Anchor selection validates that consensus has participant samples.
+    // This prevents outliers from corrupting the monotonic clock reference.
+    final participantSamples = result.participants;
+    if (participantSamples.isEmpty) {
+      throw TrustedTimeSyncException(
+        'Consensus result has no participant samples',
+      );
+    }
+
     final uptimeMs = await _clock.uptimeMs();
     final wallMs = DateTime.now().millisecondsSinceEpoch;
 
@@ -246,6 +294,36 @@ final class SyncEngine {
       authLevel: result.authLevel,
       confidence: result.confidence,
     );
+  }
+
+  /// Finalizes synchronization when all queries complete.
+  void _finalizeSync(
+    List<TimeSample> samples,
+    int rejectedInvalid,
+    int totalSources,
+    Completer<TrustAnchor> completer, {
+    int? elapsedMs,
+  }) {
+    if (completer.isCompleted) return;
+
+    // All sources responded but we haven't reached stability.
+    // Try one final resolve with all samples before failing.
+    final finalResult = _engine.resolve(samples);
+    if (finalResult != null && samples.length >= _config.minimumQuorum) {
+      unawaited(_completeSync(finalResult, elapsedMs ?? 0, completer));
+    } else {
+      // Improved quorum-failure messaging with accurate counts
+      final eligibleCount = samples.length;
+      final sampleWord = eligibleCount == 1 ? 'sample' : 'samples';
+      final rejectedWord = rejectedInvalid == 1 ? 'source was' : 'sources were';
+
+      completer.completeError(
+        TrustedTimeSyncException(
+          'Failed to reach quorum: got $eligibleCount eligible $sampleWord '
+          '($rejectedInvalid $rejectedWord rejected as invalid) from $totalSources total sources.',
+        ),
+      );
+    }
   }
 
   /// Wraps a source query with timeout and health-tracking logic.
@@ -261,8 +339,9 @@ final class SyncEngine {
       final score = (_sourceHealth[source.id] ?? 0) + 1;
       _sourceHealth[source.id] = score;
       final cooldownMin = pow(2, min(score, 6)).toInt();
-      _blacklistUntil[source.id] =
-          DateTime.now().add(Duration(minutes: cooldownMin));
+      _blacklistUntil[source.id] = DateTime.now().add(
+        Duration(minutes: cooldownMin),
+      );
 
       return null;
     }

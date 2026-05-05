@@ -8,7 +8,8 @@ final class TrustedTimeNotReadyException implements Exception {
   const TrustedTimeNotReadyException();
 
   @override
-  String toString() => 'TrustedTime is not yet trusted. '
+  String toString() =>
+      'TrustedTime is not yet trusted. '
       'Await initialize() and ensure sync succeeded.';
 }
 

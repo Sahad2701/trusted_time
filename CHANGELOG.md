@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.0.3]
+
+### Changed
+- **Breaking**: Bumped minimum SDK requirements to Dart 3.10.0 / Flutter 3.38.0 for Native Assets support.
+- **NTS RFC 8915 Compliance**: Migrated from pure-Dart NTS implementation to [`package:nts`](https://pub.dev/packages/nts).
+  - Now uses Rust-based TLS 1.3 with proper RFC 5705 keying material exporters.
+  - Full AES-SIV-CMAC-256 AEAD authentication (previously advisory-only).
+  - `NtsAuthLevel.advisory` is now deprecated; use `NtsAuthLevel.verified` for cryptographic guarantees.
+  - Thanks to `nick-llewellyn` for the technical guidance on RFC 5705 constraints.
+
+### Improved
+Thanks to `nick-llewellyn` for the correctness audit enhancing the Marzullo consensus implementation:
+
+- **Robust source counting**: Enhanced `participantCount` to use multiset-based unique source tracking. Multiple overlapping samples from a single source now correctly contribute one participant to the quorum.
+- **Improved sweep algorithm**: The Marzullo sweep now optimizes on unique source diversity rather than raw interval overlap, yielding higher-quality consensus when sources provide multiple samples.
+- **Precision safeguards**: Added minimum 1ms floor to `uncertaintyMs`. Narrow intervals now report realistic precision instead of implying sub-millisecond accuracy.
+- **Input validation**: `SyncEngine` now filters samples with negative uncertainty before processing, protecting the monotonic clock reference from malformed measurements.
+- **Enhanced anchor integrity**: Anchor creation now validates against `ConsensusResult.participants`, ensuring only samples overlapping the consensus window influence the trusted time estimate.
+
+### Fixed
+- **HTTP Security**: Updated `http` package constraints to resolve pub.dev security advisory decoding issues.
+- **Pub.dev Compatibility**: Fixed `FormatException: advisoriesUpdated must be a String` error during dependency resolution.
+- **Quorum Messaging**: Improved error messages to show accurate counts of eligible vs rejected samples with proper pluralization.
+
 ## [2.0.2]
 
 ### Fixed

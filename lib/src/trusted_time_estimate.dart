@@ -50,7 +50,8 @@ final class TrustedTimeEstimate {
   bool get isReasonable => confidence >= 0.5;
 
   @override
-  String toString() => 'TrustedTimeEstimate(time: $estimatedTime, '
+  String toString() =>
+      'TrustedTimeEstimate(time: $estimatedTime, '
       'confidence: ${confidence.toStringAsFixed(3)}, '
       'error: ±${estimatedError.inSeconds}s)';
 }

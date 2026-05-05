@@ -11,13 +11,22 @@ import 'package:web/web.dart' as web;
 /// zero on every page load. This means trust anchors cannot survive page
 /// refreshes; the engine will perform a fresh network sync on each load.
 class TrustedTimeWebPlugin {
+  /// Creates the web plugin instance.
+  ///
+  /// This constructor is provided for completeness but instances are not
+  /// typically created directly; instead, use [registerWith] to set up the
+  /// plugin with the Flutter engine.
+  TrustedTimeWebPlugin();
+
   /// Documented.
   static void registerWith(Registrar registrar) {
-    const MethodChannel('trusted_time/monotonic')
-        .setMethodCallHandler(_handleMonotonic);
+    const MethodChannel(
+      'trusted_time/monotonic',
+    ).setMethodCallHandler(_handleMonotonic);
 
-    const MethodChannel('trusted_time/background')
-        .setMethodCallHandler(_handleBackground);
+    const MethodChannel(
+      'trusted_time/background',
+    ).setMethodCallHandler(_handleBackground);
   }
 
   static Future<dynamic> _handleMonotonic(MethodCall call) async {

@@ -5,10 +5,8 @@ import 'package:flutter/foundation.dart';
 @immutable
 final class TimeInterval {
   /// Creates a new [TimeInterval] with the specified start and end times in milliseconds.
-  const TimeInterval({
-    required this.startMs,
-    required this.endMs,
-  }) : assert(startMs <= endMs, 'Interval start must be <= end');
+  const TimeInterval({required this.startMs, required this.endMs})
+    : assert(startMs <= endMs, 'Interval start must be <= end');
 
   /// The start of the interval (inclusive).
   final int startMs;

@@ -77,9 +77,7 @@ abstract final class TrustedTime {
   ///   runApp(MyApp());
   /// }
   /// ```
-  static Future<void> initialize({
-    TrustedTimeConfig? config,
-  }) async {
+  static Future<void> initialize({TrustedTimeConfig? config}) async {
     if (!_timezoneInitialized) {
       tz.initializeTimeZones();
       _timezoneInitialized = true;
@@ -175,13 +173,15 @@ abstract final class TrustedTime {
   }) {
     if (requireSecure && !isSecure) {
       throw const TrustedTimeSecurityException(
-          'NTS-authenticated time is required but unavailable in the current session.');
+        'NTS-authenticated time is required but unavailable in the current session.',
+      );
     }
 
     final currentConfidence = confidence;
     if (currentConfidence.index < minConfidence.index) {
       throw TrustedTimeSecurityException(
-          'Confidence level ${currentConfidence.name} is below required ${minConfidence.name}.');
+        'Confidence level ${currentConfidence.name} is below required ${minConfidence.name}.',
+      );
     }
 
     return now();

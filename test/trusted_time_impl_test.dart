@@ -14,9 +14,9 @@ void main() {
   const monotonicChannel = MethodChannel('trusted_time/monotonic');
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(monotonicChannel, (call) async {
-    if (call.method == 'getUptimeMs') return 1000;
-    return null;
-  });
+        if (call.method == 'getUptimeMs') return 1000;
+        return null;
+      });
 
   const backgroundChannel = MethodChannel('trusted_time/background');
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -82,17 +82,18 @@ void main() {
     });
 
     test(
-        'trustedLocalTimeIn throws TrustedTimeNotReadyException when not trusted',
-        () async {
-      await TrustedTime.initialize();
-      mock = TrustedTimeMock(initial: DateTime.utc(2024, 6, 15, 12));
-      TrustedTime.overrideForTesting(mock);
-      mock.simulateReboot();
-      expect(
-        () => TrustedTime.trustedLocalTimeIn('America/New_York'),
-        throwsA(isA<TrustedTimeNotReadyException>()),
-      );
-    });
+      'trustedLocalTimeIn throws TrustedTimeNotReadyException when not trusted',
+      () async {
+        await TrustedTime.initialize();
+        mock = TrustedTimeMock(initial: DateTime.utc(2024, 6, 15, 12));
+        TrustedTime.overrideForTesting(mock);
+        mock.simulateReboot();
+        expect(
+          () => TrustedTime.trustedLocalTimeIn('America/New_York'),
+          throwsA(isA<TrustedTimeNotReadyException>()),
+        );
+      },
+    );
 
     test('nowEstimated returns estimate with full confidence when trusted', () {
       final estimate = TrustedTime.nowEstimated();

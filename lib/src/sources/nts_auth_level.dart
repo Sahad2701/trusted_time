@@ -3,15 +3,17 @@ enum NtsAuthLevel {
   /// No authentication performed (Plain NTP/HTTPS).
   none,
 
-  /// **ADVISORY ONLY**: NTS-KE handshake successful, but AEAD verification
-  /// is currently simulated/advisory due to Dart SDK limitations (lack of
-  /// TLS exporters and native AES-SIV support).
-  ///
-  /// This level provides protection against accidental drift but NOT against
-  /// determined on-path adversaries. Do not use for high-value financial
-  /// or security-critical transactions.
+  /// **DEPRECATED**: Previously used for non-conforming pure-Dart NTS.
+  /// The current implementation uses `package:nts` with full RFC 8915 compliance.
+  @Deprecated(
+    'Use verified instead. This level is no longer supported with the migration to package:nts.',
+  )
   advisory,
 
-  /// Full cryptographic authentication (Reserved for future native/FFI implementation).
+  /// Full RFC 8915 cryptographic authentication via `package:nts`.
+  ///
+  /// Uses Rust-based TLS 1.3 with proper RFC 5705 keying material exporters
+  /// and AES-SIV-CMAC-256 AEAD. Provides cryptographic authenticity guarantees
+  /// against on-path attackers.
   verified,
 }

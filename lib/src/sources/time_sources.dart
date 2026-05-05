@@ -10,7 +10,7 @@ export 'nts_source_stub.dart' if (dart.library.io) 'nts_source.dart';
 final class HttpsSource implements TimeSource {
   /// Documented.
   HttpsSource(this._url, {http.Client? client})
-      : _client = client ?? http.Client();
+    : _client = client ?? http.Client();
 
   final String _url;
   final http.Client _client;
@@ -141,7 +141,8 @@ final class _HttpDate {
       }
       if (sec < 0 || sec > 60) {
         throw const FormatException(
-            'Second out of range'); // Allow leap seconds
+          'Second out of range',
+        ); // Allow leap seconds
       }
 
       return DateTime.utc(year, month, day, hour, min, sec);
