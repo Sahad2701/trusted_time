@@ -277,7 +277,9 @@ void main() {
           uncertaintyMs: 50,
         );
         final result = engine.resolve([sample1, sample2]);
-        expect(result, isNotNull);
+        if (result == null) {
+          fail('Expected non-null result');
+        }
         // Both samples overlap the consensus window, so both can be in participants
         expect(result.participants.length, greaterThanOrEqualTo(1));
         expect(result.participants.length, lessThanOrEqualTo(2));
