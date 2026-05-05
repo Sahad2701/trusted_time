@@ -142,26 +142,14 @@ final class MarzulloEngine {
           bestUniqueOverlap = uniqueOverlap;
           bestStart = ep.timeMs;
           bestEnd = null;
-          bestSamples
-            ..clear()
-            ..addAll(
-              endpoints
-                  .where((e) => e.timeMs <= ep.timeMs)
-                  .where((e) => e.type == _EndpointType.lower)
-                  .map((e) => e.sample)
-                  .toSet()
-                  .where((s) {
-                    // Only include if this sample's interval contains the start point
-                    final otherLower = endpoints.firstWhere(
-                      (e) => e.sample == s && e.type == _EndpointType.lower,
-                    );
-                    final otherUpper = endpoints.firstWhere(
-                      (e) => e.sample == s && e.type == _EndpointType.upper,
-                    );
-                    return otherLower.timeMs <= bestStart! &&
-                        bestStart <= otherUpper.timeMs;
-                  }),
-            );
+          // Rebuild bestSamples with all samples currently active
+          bestSamples.clear();
+          for (final s in validSamples) {
+            if (s.interval.startMs <= bestStart &&
+                bestStart <= s.interval.endMs) {
+              bestSamples.add(s);
+            }
+          }
         }
       } else {
         if (activeSourceCounts[ep.sample.sourceId] == 1) {
@@ -230,7 +218,7 @@ final class MarzulloEngine {
 
     // Identify actual participants: samples whose intervals contain the consensus midpoint
     // Only consider samples that were in the best overlap window
-    final participants = validSamples.where((s) {
+    final participants = bestSamples.where((s) {
       return s.interval.startMs <= midMs && midMs <= s.interval.endMs;
     }).toSet();
 
