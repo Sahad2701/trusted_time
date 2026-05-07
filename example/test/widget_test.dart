@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:trusted_time_example/main.dart';
+import 'package:trusted_time_example/sync_telemetry.dart';
 import 'package:trusted_time/trusted_time.dart';
 
 void main() {
@@ -33,7 +34,7 @@ void main() {
     final mock = TrustedTimeMock(initial: DateTime.utc(2024, 1, 1, 12));
     TrustedTime.overrideForTesting(mock);
 
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(MyApp(telemetry: TelemetryRecorder()));
     await tester.pumpAndSettle();
 
     expect(find.text('TrustedTime V2 Features'), findsOneWidget);

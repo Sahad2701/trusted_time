@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:trusted_time/trusted_time.dart';
+import 'sync_telemetry.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,11 +14,20 @@ Future<void> main() async {
     ),
   );
 
-  runApp(const MyApp());
+  // Register telemetry after init so the recorder receives every
+  // subsequent sync cycle (refreshes, Force Resync, integrity-triggered
+  // syncs). The very first bootstrap sync is missed because the engine
+  // instance does not exist until initialize() returns.
+  final telemetry = TelemetryRecorder();
+  TrustedTime.registerObserver(telemetry);
+
+  runApp(MyApp(telemetry: telemetry));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, required this.telemetry});
+
+  final TelemetryRecorder telemetry;
 
   @override
   Widget build(BuildContext context) {
@@ -30,13 +40,15 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const HomePage(),
+      home: HomePage(telemetry: telemetry),
     );
   }
 }
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, required this.telemetry});
+
+  final TelemetryRecorder telemetry;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -251,6 +263,10 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
+            _sectionHeader('Section 6 — Sync Telemetry'),
+            _card(
+              child: _SyncTelemetryPanel(recorder: widget.telemetry),
+            ),
           ],
         ),
       ),
@@ -278,6 +294,93 @@ class _HomePageState extends State<HomePage> {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: SizedBox(width: double.infinity, child: child),
+      ),
+    );
+  }
+}
+
+
+class _SyncTelemetryPanel extends StatelessWidget {
+  const _SyncTelemetryPanel({required this.recorder});
+
+  final TelemetryRecorder recorder;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: recorder,
+      builder: (context, _) {
+        final events = recorder.events.reversed.take(15).toList();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Press Force Resync (Section 1) to capture a sync '
+                    'cycle. Warm-phase failures show as "warm: ..." on the '
+                    'sourceFailed line.',
+                    style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Clear telemetry',
+                  icon: const Icon(Icons.clear_all),
+                  onPressed: recorder.reset,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (events.isEmpty)
+              const Text(
+                'No events recorded yet.',
+                style: TextStyle(color: Colors.grey),
+              )
+            else
+              ...events.map((e) => _TelemetryRow(event: e)),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TelemetryRow extends StatelessWidget {
+  const _TelemetryRow({required this.event});
+
+  final TelemetryEvent event;
+
+  Color _colorFor(TelemetryKind kind) {
+    switch (kind) {
+      case TelemetryKind.syncStarted:
+        return Colors.blueAccent;
+      case TelemetryKind.sample:
+        return Colors.greenAccent;
+      case TelemetryKind.sourceFailed:
+        return Colors.orangeAccent;
+      case TelemetryKind.consensus:
+        return Colors.cyanAccent;
+      case TelemetryKind.metrics:
+        return Colors.purpleAccent;
+      case TelemetryKind.syncFailed:
+        return Colors.redAccent;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Text(
+        '${event.elapsedMs.toString().padLeft(7)}ms  '
+        '${event.kind.name.padRight(13)}  ${event.detail}',
+        style: TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 11,
+          color: _colorFor(event.kind),
+        ),
       ),
     );
   }
