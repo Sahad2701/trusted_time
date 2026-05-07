@@ -167,24 +167,3 @@ void main() {
     );
   });
 }
-
-extension on TrustedTimeConfig {
-  TrustedTimeConfig copyWith({
-    List<TimeSource>? additionalSources,
-    int? minimumQuorum,
-    bool? earlyExit,
-    int? minGroupCount,
-  }) {
-    return TrustedTimeConfig(
-      ntpServers: ntpServers,
-      httpsSources: httpsSources,
-      additionalSources: additionalSources ?? this.additionalSources,
-      minimumQuorum: minimumQuorum ?? this.minimumQuorum,
-      earlyExit: earlyExit ?? this.earlyExit,
-      minGroupCount: minGroupCount ?? this.minGroupCount,
-      persistState: persistState,
-      refreshInterval: refreshInterval,
-      maxLatency: maxLatency,
-    );
-  }
-}

@@ -137,6 +137,50 @@ final class TrustedTimeConfig {
   /// The interval at which the engine should perform a background synchronization.
   /// If null, background synchronization is disabled.
   final Duration? backgroundSyncInterval;
+
+  /// Returns a new [TrustedTimeConfig] with the supplied fields replaced.
+  ///
+  /// Any field omitted (or passed as `null`) keeps its current value.
+  /// [backgroundSyncInterval] cannot be cleared back to `null` through
+  /// this method; construct a new instance directly if that is needed.
+  TrustedTimeConfig copyWith({
+    List<String>? ntpServers,
+    List<String>? httpsSources,
+    List<String>? ntsServers,
+    int? ntsPort,
+    List<TimeSource>? additionalSources,
+    double? minQuorumRatio,
+    int? minimumQuorum,
+    int? minGroupCount,
+    Duration? maxLatency,
+    Duration? refreshInterval,
+    int? maxAllowedUncertaintyMs,
+    bool? persistState,
+    bool? earlyExit,
+    double? oscillatorDriftFactor,
+    Duration? backgroundSyncInterval,
+  }) {
+    return TrustedTimeConfig(
+      ntpServers: ntpServers ?? this.ntpServers,
+      httpsSources: httpsSources ?? this.httpsSources,
+      ntsServers: ntsServers ?? this.ntsServers,
+      ntsPort: ntsPort ?? this.ntsPort,
+      additionalSources: additionalSources ?? this.additionalSources,
+      minQuorumRatio: minQuorumRatio ?? this.minQuorumRatio,
+      minimumQuorum: minimumQuorum ?? this.minimumQuorum,
+      minGroupCount: minGroupCount ?? this.minGroupCount,
+      maxLatency: maxLatency ?? this.maxLatency,
+      refreshInterval: refreshInterval ?? this.refreshInterval,
+      maxAllowedUncertaintyMs:
+          maxAllowedUncertaintyMs ?? this.maxAllowedUncertaintyMs,
+      persistState: persistState ?? this.persistState,
+      earlyExit: earlyExit ?? this.earlyExit,
+      oscillatorDriftFactor:
+          oscillatorDriftFactor ?? this.oscillatorDriftFactor,
+      backgroundSyncInterval:
+          backgroundSyncInterval ?? this.backgroundSyncInterval,
+    );
+  }
 }
 
 @immutable
