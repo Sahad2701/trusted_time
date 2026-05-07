@@ -45,16 +45,22 @@ class TelemetryRecorder extends ChangeNotifier implements SyncObserver {
   List<TelemetryEvent> get events => List.unmodifiable(_events);
 
   void _add(TelemetryKind kind, String detail) {
-    _events.add(
-      TelemetryEvent(
-        elapsedMs: _start.elapsedMilliseconds,
-        kind: kind,
-        detail: detail,
-      ),
+    final event = TelemetryEvent(
+      elapsedMs: _start.elapsedMilliseconds,
+      kind: kind,
+      detail: detail,
     );
+    _events.add(event);
     if (_events.length > _maxEvents) {
       _events.removeRange(0, _events.length - _maxEvents);
     }
+    // Mirror to the Flutter console using the same single-line layout
+    // that _TelemetryRow renders, so terminal logs can be copy-pasted
+    // straight into bug reports during device testing.
+    debugPrint(
+      '${event.elapsedMs.toString().padLeft(7)}ms  '
+      '${event.kind.name.padRight(13)}  ${event.detail}',
+    );
     notifyListeners();
   }
 
