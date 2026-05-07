@@ -55,7 +55,10 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  DateTime _now = TrustedTime.now();
+  // Null until the engine has reached its first trusted anchor. Reading
+  // TrustedTime.now() before isTrusted == true throws, so we defer the
+  // first read to the ticker (or the initState probe below).
+  DateTime? _now;
   Timer? _ticker;
   IntegrityEvent? _lastEvent;
   TrustedTimeEstimate? _estimate;
@@ -69,8 +72,23 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    // Section 1: UI clock ticking every second.
+
+    // Probe in case the engine reached trust before this widget mounted
+    // (warm-start path with a persisted anchor).
+    if (TrustedTime.isTrusted) {
+      _now = TrustedTime.now();
+    }
+
+    // Section 1: UI clock ticking every second. Skip the read until the
+    // engine has established a trusted anchor; the ticker will pick up
+    // the first sample within a second of isTrusted flipping to true.
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!TrustedTime.isTrusted) {
+        // Force a rebuild so the badge / placeholder text refreshes
+        // even while we don't yet have a trusted reading.
+        setState(() {});
+        return;
+      }
       setState(() {
         _now = TrustedTime.now();
       });
@@ -130,7 +148,9 @@ class _HomePageState extends State<HomePage> {
               child: Column(
                 children: [
                   Text(
-                    _now.toIso8601String(),
+                    isTrusted && _now != null
+                        ? _now!.toIso8601String()
+                        : 'Waiting for trusted time…',
                     style: const TextStyle(
                       fontSize: 20,
                       fontFamily: 'monospace',
@@ -159,8 +179,12 @@ class _HomePageState extends State<HomePage> {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       ElevatedButton(
-                        onPressed: () =>
-                            setState(() => _now = TrustedTime.now()),
+                        // Disabled until the engine reaches its first
+                        // trusted anchor; tapping before would throw
+                        // TrustedTimeNotReadyException.
+                        onPressed: isTrusted
+                            ? () => setState(() => _now = TrustedTime.now())
+                            : null,
                         child: const Text('Get Time'),
                       ),
                       ElevatedButton(
