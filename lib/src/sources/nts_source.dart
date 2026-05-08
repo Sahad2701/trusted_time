@@ -19,12 +19,23 @@ import 'nts_auth_level.dart';
 /// - AES-SIV-CMAC-256 authenticated encryption
 /// - Secure NTPv4 extension field handling
 ///
+/// **Cookie jar lifecycle:** [warm] runs [ntsWarmCookies] to perform the
+/// NTS-KE handshake (TCP + TLS + KE, ~3 RTTs) and prime the cookie jar.
+/// [SyncEngine] awaits this in its warming phase before starting the
+/// per-query timeout, so the handshake cost falls outside the
+/// `maxLatency` budget. The warm result is memoized; subsequent calls
+/// share the same completed [Future]. Each successful query receives one
+/// fresh cookie in-band, keeping the pool self-sustaining. If warming
+/// fails or is skipped, [getTime] still calls [warm] as a JIT fallback;
+/// when that fails too, [ntsQuery] performs its own cold-start handshake
+/// transparently.
+///
 /// **Platform support:** Android, iOS, macOS, Windows, Linux.
 /// Not available on Web (NTS requires TLS 1.3 with exporters).
 ///
 /// **Zero overhead when unused:** When [TrustedTimeConfig.ntsServers] is
 /// empty (the default), no NTS connections are made.
-final class NtsSource implements TimeSource {
+final class NtsSource implements TimeSource, Warmable {
   /// Creates an NTS source for the given NTS-KE server.
   ///
   /// [maxLatency] is forwarded as `ntsQuery`'s `timeoutMs`. [SyncEngine]
@@ -39,12 +50,16 @@ final class NtsSource implements TimeSource {
     this._host, {
     int port = 4460,
     Duration maxLatency = const Duration(seconds: 5),
-  }) : _port = port,
+  }) : _spec = nts.NtsServerSpec(host: _host, port: port),
        _timeoutMs = maxLatency.inMilliseconds;
 
   final String _host;
-  final int _port;
+  final nts.NtsServerSpec _spec;
   final int _timeoutMs;
+
+  /// Memoized NTS-KE warm task. `null` until [warm] is first invoked,
+  /// so constructing an [NtsSource] never touches the FFI surface.
+  Future<void>? _warmTask;
 
   @override
   String get id => '${TimeSource.prefixNts}$_host';
@@ -58,13 +73,20 @@ final class NtsSource implements TimeSource {
   bool get isSecure => true;
 
   @override
+  Future<void> warm() {
+    return _warmTask ??= _performWarming();
+  }
+
+  @override
   Future<TimeSample> getTime() async {
+    // JIT fallback: ensure warming has been kicked off and completed
+    // before issuing the timed query. SyncEngine normally awaits warm()
+    // in its dedicated warming phase, so this is a no-op in that path.
+    await warm();
+
     final nts.NtsTimeSample result;
     try {
-      result = await nts.ntsQuery(
-        spec: nts.NtsServerSpec(host: _host, port: _port),
-        timeoutMs: _timeoutMs,
-      );
+      result = await nts.ntsQuery(spec: _spec, timeoutMs: _timeoutMs);
     } on nts.NtsError_Timeout catch (e) {
       // Dns(Saturation) means the bounded DNS resolver pool was at
       // capacity for this call. The host itself is healthy; SyncEngine
@@ -90,7 +112,8 @@ final class NtsSource implements TimeSource {
       );
     }
 
-    // Calculate uncertainty from network RTT (convert microseconds to milliseconds)
+    // Calculate uncertainty from network RTT (convert microseconds to
+    // milliseconds).
     final uncertaintyMs = result.roundTripMicros ~/ 2000;
     final timestampMs = result.utcUnixMicros ~/ 1000;
 
@@ -101,8 +124,17 @@ final class NtsSource implements TimeSource {
       ),
       sourceId: id,
       groupId: groupId,
-      // Full RFC 8915 compliance = cryptographic security
       authLevel: NtsAuthLevel.verified,
     );
+  }
+
+  Future<void> _performWarming() async {
+    try {
+      await nts.ntsWarmCookies(spec: _spec);
+    } catch (_) {
+      // Swallow: missing Rust binaries (test envs), TLS failures, etc.
+      // ntsQuery handles a cold-start handshake transparently when the
+      // cookie jar is empty.
+    }
   }
 }

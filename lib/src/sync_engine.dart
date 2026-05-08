@@ -189,28 +189,46 @@ final class SyncEngine {
         }
       });
 
-      // 2. Launch racing queries
+      // 2. Launch racing queries.
+      //
+      // Each source runs a per-source two-phase sequence concurrently
+      // with the others:
+      //   Phase A — for sources that implement [Warmable], warm() runs
+      //     outside the per-query maxLatency budget, so slow handshakes
+      //     (e.g., NTS-KE) do not eat into the timed query window.
+      //     Sources that don't implement Warmable skip Phase A and
+      //     proceed straight to the query, so they are not blocked by
+      //     slower siblings.
+      //   Phase B — _querySafe() runs the timed getTime() under
+      //     _config.maxLatency.
+      // warm() is wrapped in Future.sync to capture both synchronous
+      // and asynchronous throws so a misbehaving source cannot abort
+      // its own query (we still proceed to _querySafe) nor the batch.
       for (final source in activeSources) {
-        unawaited(
-          _querySafe(source)
-              .then((s) {
-                if (!streamClosed && !sampleController.isClosed) {
-                  sampleController.add(s);
-                }
-              })
-              .catchError((Object e) {
-                _observer?.onSourceFailed(source.id, e);
-                if (!streamClosed && !sampleController.isClosed) {
-                  sampleController.add(
-                    null,
-                  ); // Ensure pendingQueries still decrements
-                }
-              }),
-        );
+        unawaited(() async {
+          if (source is Warmable) {
+            try {
+              await Future.sync(() => (source as Warmable).warm());
+            } catch (e) {
+              _observer?.onSourceFailed(source.id, 'warm: $e');
+            }
+          }
+
+          final sample = await _querySafe(source);
+          if (!streamClosed && !sampleController.isClosed) {
+            sampleController.add(sample);
+          }
+        }());
       }
 
+      // Outer safety timeout. The per-source pipeline runs warm()
+      // outside the maxLatency budget, so this deadline must cover
+      // both phases. Budget = maxLatency (timed query window) + 5s for
+      // a slow NTS-KE handshake (TCP + TLS 1.3 + key exchange,
+      // typically ~1s but up to ~3s on poor networks) + 1s for stream
+      // processing and consensus resolution overhead.
       final anchor = await completer.future.timeout(
-        _config.maxLatency + const Duration(seconds: 1),
+        _config.maxLatency + const Duration(seconds: 6),
         onTimeout: () {
           if (!completer.isCompleted &&
               samples.length >= _config.minimumQuorum) {

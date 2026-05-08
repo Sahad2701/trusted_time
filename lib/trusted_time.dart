@@ -27,6 +27,7 @@ library;
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:nts/nts.dart' as nts;
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'src/exceptions.dart';
@@ -89,6 +90,26 @@ abstract final class TrustedTime {
       config = TrustedTimeConfig.web();
     } else {
       config ??= const TrustedTimeConfig();
+    }
+
+    // Initialize the flutter_rust_bridge runtime backing package:nts
+    // before any NtsSource is constructed.  Gated on
+    // ntsServers.isNotEmpty to preserve the package's "zero overhead
+    // when unused" guarantee.  If RustLib.init fails (missing native
+    // assets, architecture mismatch, etc.), strip ntsServers from the
+    // config so SyncEngine never instantiates an NtsSource and the
+    // process falls back to NTP/HTTPS sources for its lifetime.
+    if (config.ntsServers.isNotEmpty) {
+      try {
+        await nts.RustLib.init();
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint(
+            '[TrustedTime] NTS disabled — RustLib.init failed: $e',
+          );
+        }
+        config = config.copyWith(ntsServers: const []);
+      }
     }
 
     await TrustedTimeImpl.init(config);
