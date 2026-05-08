@@ -519,4 +519,158 @@ void main() {
       },
     );
   });
+
+  group('SyncEngine.warmAllSources', () {
+    late MockMonotonicClock clock;
+    late TrustedTimeConfig config;
+
+    setUp(() {
+      clock = MockMonotonicClock();
+      config = const TrustedTimeConfig(
+        minimumQuorum: 2,
+        minGroupCount: 1,
+        ntpServers: [],
+        httpsSources: [],
+      );
+    });
+
+    test(
+      'invokes warm() on every Warmable source in parallel',
+      () async {
+        final events = <WarmingEvent>[];
+        final clockSw = Stopwatch()..start();
+        final sources = [
+          WarmingTestSource(
+            id: 'a',
+            groupId: 'g-a',
+            utcMs: 1000000,
+            events: events,
+            clock: clockSw,
+            warmDelay: const Duration(milliseconds: 100),
+          ),
+          WarmingTestSource(
+            id: 'b',
+            groupId: 'g-b',
+            utcMs: 1000000,
+            events: events,
+            clock: clockSw,
+            warmDelay: const Duration(milliseconds: 100),
+          ),
+          WarmingTestSource(
+            id: 'c',
+            groupId: 'g-c',
+            utcMs: 1000000,
+            events: events,
+            clock: clockSw,
+            warmDelay: const Duration(milliseconds: 100),
+          ),
+        ];
+
+        final engine = SyncEngine(
+          config: config.copyWith(additionalSources: sources),
+          clock: clock,
+        );
+
+        final sw = Stopwatch()..start();
+        await engine.warmAllSources();
+        sw.stop();
+
+        // All three sources must have completed warming.
+        for (final id in ['a', 'b', 'c']) {
+          expect(
+            events.any(
+              (e) => e.sourceId == id && e.phase == WarmingPhase.warmEnd,
+            ),
+            isTrue,
+            reason: '$id.warm-end was not recorded',
+          );
+        }
+
+        // Parallelism: 3 x 100ms warms must take ~100ms, not ~300ms.
+        // 250ms is generous enough to absorb scheduling jitter on
+        // slow CI without admitting accidental sequential execution.
+        expect(
+          sw.elapsedMilliseconds,
+          lessThan(250),
+          reason: 'warmAllSources took ${sw.elapsedMilliseconds}ms; '
+              'expected ~100ms (parallel) not ~300ms (sequential)',
+        );
+      },
+    );
+
+    test(
+      'is a no-op when no source implements Warmable',
+      () async {
+        final source = RaceConditionSource(
+          'plain',
+          Duration.zero,
+          1000000,
+        );
+
+        final engine = SyncEngine(
+          config: config.copyWith(additionalSources: [source]),
+          clock: clock,
+        );
+
+        final sw = Stopwatch()..start();
+        await engine.warmAllSources();
+        sw.stop();
+
+        expect(sw.elapsedMilliseconds, lessThan(50));
+      },
+    );
+
+    test(
+      'swallows individual warm failures so a misbehaving source cannot '
+      'block bootstrap',
+      () async {
+        final events = <WarmingEvent>[];
+        final clockSw = Stopwatch()..start();
+        final sources = [
+          WarmingTestSource(
+            id: 'syncThrower',
+            groupId: 'g-sync',
+            utcMs: 1000000,
+            events: events,
+            clock: clockSw,
+            throwSyncFromWarm: true,
+          ),
+          WarmingTestSource(
+            id: 'asyncThrower',
+            groupId: 'g-async',
+            utcMs: 1000000,
+            events: events,
+            clock: clockSw,
+            throwAsyncFromWarm: true,
+          ),
+          WarmingTestSource(
+            id: 'healthy',
+            groupId: 'g-healthy',
+            utcMs: 1000000,
+            events: events,
+            clock: clockSw,
+            warmDelay: const Duration(milliseconds: 30),
+          ),
+        ];
+
+        final engine = SyncEngine(
+          config: config.copyWith(additionalSources: sources),
+          clock: clock,
+        );
+
+        // Must not throw.
+        await engine.warmAllSources();
+
+        // Healthy source must still have completed warming.
+        expect(
+          events.any(
+            (e) =>
+                e.sourceId == 'healthy' && e.phase == WarmingPhase.warmEnd,
+          ),
+          isTrue,
+          reason: 'healthy.warm-end did not run despite sibling failures',
+        );
+      },
+    );
+  });
 }

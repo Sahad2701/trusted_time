@@ -207,6 +207,14 @@ final class TrustedTimeImpl {
       }
     }
 
+    // Eagerly prime per-source warm state (e.g., NTS cookie jars) so
+    // that the first sync cycle's RTT measurements are not
+    // contaminated by cold-start handshake latency. Sources without a
+    // warm phase are unaffected. This adds the slowest source's
+    // handshake time (typically ~hundreds of ms) to initialize() when
+    // NTS sources are configured.
+    await _syncEngine.warmAllSources();
+
     final persisted = _config.persistState ? await _store.load() : null;
     if (persisted != null) {
       final rebooted = await _monitor.checkRebootOnWarmStart(persisted);

@@ -63,6 +63,38 @@ final class SyncEngine {
 
   int _syncAttempts = 0;
 
+  /// Eagerly invokes [Warmable.warm] on every source that supports it,
+  /// in parallel.
+  ///
+  /// Intended to be called during application bootstrap so per-source
+  /// setup costs (e.g., the NTS-KE TCP+TLS+key-exchange handshake)
+  /// complete before the first [sync] cycle. Without this, those costs
+  /// fall inside cycle 1's wall clock and contaminate sample
+  /// timestamps with hundreds of milliseconds of skew, preventing
+  /// Marzullo intervals from overlapping.
+  ///
+  /// Each [Warmable.warm] is itself idempotent and memoized, so calling
+  /// this method multiple times is safe and cheap. Failures from
+  /// individual sources are swallowed: warming is best-effort, and
+  /// [sync] retains its existing JIT-warm fallback path.
+  Future<void> warmAllSources() async {
+    final warmables = _sources.whereType<Warmable>().toList(
+      growable: false,
+    );
+    if (warmables.isEmpty) return;
+    await Future.wait(
+      warmables.map((s) async {
+        try {
+          await s.warm();
+        } catch (_) {
+          // Same semantics as the warm-phase failure handling in
+          // sync(): swallow so a single misbehaving source cannot
+          // block bootstrap.
+        }
+      }),
+    );
+  }
+
   /// Executes a full synchronization cycle across all healthy sources.
   ///
   /// This method is the primary driver of trust establishment. It races sources,
