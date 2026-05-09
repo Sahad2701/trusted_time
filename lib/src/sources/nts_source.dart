@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:nts/nts.dart' as nts;
 
 import '../domain/time_sample.dart';
 import '../domain/time_source.dart';
 import '../domain/time_interval.dart';
+import '../exceptions.dart';
 import '../models.dart';
 import 'nts_auth_level.dart';
 
@@ -24,10 +26,25 @@ import 'nts_auth_level.dart';
 /// empty (the default), no NTS connections are made.
 final class NtsSource implements TimeSource {
   /// Creates an NTS source for the given NTS-KE server.
-  NtsSource(this._host, {int port = 4460}) : _port = port;
+  ///
+  /// [maxLatency] is forwarded as `ntsQuery`'s `timeoutMs`. [SyncEngine]
+  /// passes [TrustedTimeConfig.maxLatency] so the inner per-query budget
+  /// matches the outer `.timeout(_config.maxLatency)` wrapper. Without
+  /// this, an inner timeout longer than the outer would always be
+  /// pre-empted by Dart's `TimeoutException`, swallowing the
+  /// phase-tagged `NtsError.timeout(TimeoutPhase)` payload that drives
+  /// the [TransientSourceError] cooldown-bypass path. The default of 5 s
+  /// preserves the prior hardcoded behaviour for direct callers.
+  NtsSource(
+    this._host, {
+    int port = 4460,
+    Duration maxLatency = const Duration(seconds: 5),
+  }) : _port = port,
+       _timeoutMs = maxLatency.inMilliseconds;
 
   final String _host;
   final int _port;
+  final int _timeoutMs;
 
   @override
   String get id => '${TimeSource.prefixNts}$_host';
@@ -42,11 +59,36 @@ final class NtsSource implements TimeSource {
 
   @override
   Future<TimeSample> getTime() async {
-    // Use package:nts for full RFC 8915 compliant NTS query
-    final result = await nts.ntsQuery(
-      spec: nts.NtsServerSpec(host: _host, port: _port),
-      timeoutMs: 5000,
-    );
+    final nts.NtsTimeSample result;
+    try {
+      result = await nts.ntsQuery(
+        spec: nts.NtsServerSpec(host: _host, port: _port),
+        timeoutMs: _timeoutMs,
+      );
+    } on nts.NtsError_Timeout catch (e) {
+      // Dns(Saturation) means the bounded DNS resolver pool was at
+      // capacity for this call. The host itself is healthy; SyncEngine
+      // should retry on the next cycle without applying exponential
+      // cooldown. Other timeout phases (Connect, Tls, KeRecordIo, Ntp,
+      // DnsTimeout) propagate as-is and follow the standard cooldown
+      // path.
+      if (e.field0 == nts.TimeoutPhase.dnsSaturation) {
+        throw TransientSourceError(e);
+      }
+      rethrow;
+    }
+
+    if (kDebugMode) {
+      final p = result.phaseTimings;
+      debugPrint(
+        '[TrustedTime] nts:$_host '
+        'rtt=${(result.roundTripMicros / 1000).toStringAsFixed(1)}ms '
+        'dns=${(p.dnsMicros / 1000).toStringAsFixed(1)}ms '
+        'connect=${(p.connectMicros / 1000).toStringAsFixed(1)}ms '
+        'tls=${(p.tlsHandshakeMicros / 1000).toStringAsFixed(1)}ms '
+        'ke=${(p.keRecordIoMicros / 1000).toStringAsFixed(1)}ms',
+      );
+    }
 
     // Calculate uncertainty from network RTT (convert microseconds to milliseconds)
     final uncertaintyMs = result.roundTripMicros ~/ 2000;

@@ -51,7 +51,7 @@ final class SyncEngine {
     for (final host in _config.ntpServers) NtpSource(host),
     for (final url in _config.httpsSources) HttpsSource(url),
     for (final host in _config.ntsServers)
-      NtsSource(host, port: _config.ntsPort),
+      NtsSource(host, port: _config.ntsPort, maxLatency: _config.maxLatency),
     ..._config.additionalSources,
   ];
 
@@ -333,6 +333,14 @@ final class SyncEngine {
       _sourceHealth[source.id] = 0; // Reset failure count on success
       _blacklistUntil.remove(source.id);
       return sample;
+    } on TransientSourceError catch (e) {
+      // Source classified the failure as transient (e.g. NtsSource saw
+      // NtsError.timeout(TimeoutPhase.dnsSaturation): the DNS resolver
+      // pool was momentarily full). Notify the observer but do not bump
+      // the failure score or blacklist the host — the next sync cycle
+      // is expected to succeed once contention clears.
+      _observer?.onSourceFailed(source.id, e);
+      return null;
     } catch (e) {
       _observer?.onSourceFailed(source.id, e);
 
