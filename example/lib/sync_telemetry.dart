@@ -92,7 +92,15 @@ class TelemetryRecorder extends ChangeNotifier implements SyncObserver {
 
   @override
   void onSourceFailed(String sourceId, Object error) {
-    _add(TelemetryKind.sourceFailed, '$sourceId: $error');
+    // TransientSourceError is the engine's signal that a failure (e.g.
+    // NTS DnsSaturation) was classified as transient and the source
+    // was retried on the next cycle without exponential cooldown.
+    // Prefix the detail so the panel makes the cooldown bypass
+    // visually distinct from regular failures.
+    final detail = error is TransientSourceError
+        ? '$sourceId [transient, no cooldown]: ${error.cause}'
+        : '$sourceId: $error';
+    _add(TelemetryKind.sourceFailed, detail);
   }
 
   @override
