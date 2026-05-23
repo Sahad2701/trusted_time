@@ -24,10 +24,20 @@ import 'nts_auth_level.dart';
 /// empty (the default), no NTS connections are made.
 final class NtsSource implements TimeSource {
   /// Creates an NTS source for the given NTS-KE server.
-  NtsSource(this._host, {int port = 4460}) : _port = port;
+  ///
+  /// [onStratumObserved] is called with the NTP stratum reported by the server
+  /// after each successful query. Used by [SyncEngine] to feed stratum hints
+  /// into [SourceQualityTracker] without widening [TimeSample].
+  NtsSource(
+    this._host, {
+    int port = 4460,
+    void Function(int)? onStratumObserved,
+  }) : _port = port,
+       _onStratumObserved = onStratumObserved;
 
   final String _host;
   final int _port;
+  final void Function(int)? _onStratumObserved;
 
   @override
   String get id => '${TimeSource.prefixNts}$_host';
@@ -47,6 +57,9 @@ final class NtsSource implements TimeSource {
       spec: nts.NtsServerSpec(host: _host, port: _port),
       timeoutMs: 5000,
     );
+
+    // Report stratum to quality tracker if a listener is registered.
+    _onStratumObserved?.call(result.serverStratum);
 
     // Calculate uncertainty from network RTT (convert microseconds to milliseconds)
     final uncertaintyMs = result.roundTripMicros ~/ 2000;
