@@ -7,6 +7,7 @@ import 'domain/time_interval.dart';
 import 'exceptions.dart';
 import 'models.dart';
 import 'monotonic_clock.dart';
+import 'source_quality_tracker.dart';
 import 'sources/time_sources.dart';
 import 'infra/sync_observer.dart';
 import 'infra/consensus_cache.dart';
@@ -51,7 +52,12 @@ final class SyncEngine {
     for (final host in _config.ntpServers) NtpSource(host),
     for (final url in _config.httpsSources) HttpsSource(url),
     for (final host in _config.ntsServers)
-      NtsSource(host, port: _config.ntsPort),
+      NtsSource(
+        host,
+        port: _config.ntsPort,
+        onStratumObserved: (s) =>
+            _qualityTracker.setStratum('${TimeSource.prefixNts}$host', s),
+      ),
     ..._config.additionalSources,
   ];
 
@@ -60,6 +66,8 @@ final class SyncEngine {
 
   /// Precise timestamps until which a source is considered "blacklisted."
   final _blacklistUntil = <String, DateTime>{};
+
+  final _qualityTracker = SourceQualityTracker();
 
   int _syncAttempts = 0;
 
@@ -80,10 +88,24 @@ final class SyncEngine {
 
     try {
       final now = DateTime.now();
-      final activeSources = _sources.where((s) {
+
+      // Quality-ranked source ordering with starvation guard.
+      // Sources that haven't been queried within _kStarvationCycles are always
+      // included so their quality estimates remain fresh.
+      final healthySources = _sources.where((s) {
         final until = _blacklistUntil[s.id];
         return until == null || now.isAfter(until);
       }).toList();
+
+      final rankedIds = _qualityTracker.ranked(healthySources.map((s) => s.id));
+      final activeSources = [
+        // High-quality sources first, in ranked order.
+        for (final id in rankedIds)
+          healthySources.firstWhere((s) => s.id == id),
+        // Starvation-forced sources not already in the ranked set.
+        for (final s in healthySources)
+          if (_qualityTracker.isStarved(s.id) && !rankedIds.contains(s.id)) s,
+      ];
 
       var pendingQueries = activeSources.length;
       if (pendingQueries == 0) {
@@ -227,6 +249,7 @@ final class SyncEngine {
 
       _syncAttempts = 0;
       _cache?.update(anchor);
+      _qualityTracker.advanceCycle();
       return anchor;
     } catch (e) {
       _observer?.onSyncFailed(e);
@@ -251,6 +274,16 @@ final class SyncEngine {
     try {
       final anchor = await _createAnchor(result);
       _observer?.onConsensusReached(result);
+
+      // Record quality observations for all participant samples.
+      final participantIds = result.participants.map((s) => s.sourceId).toSet();
+      for (final sample in result.participants) {
+        _qualityTracker.record(
+          sourceId: sample.sourceId,
+          uncertaintyMs: sample.uncertaintyMs,
+          participatedInConsensus: participantIds.contains(sample.sourceId),
+        );
+      }
 
       _observer?.onMetricsReported(
         SyncMetrics(
@@ -335,6 +368,7 @@ final class SyncEngine {
       return sample;
     } catch (e) {
       _observer?.onSourceFailed(source.id, e);
+      _qualityTracker.recordFailure(source.id);
 
       final score = (_sourceHealth[source.id] ?? 0) + 1;
       _sourceHealth[source.id] = score;

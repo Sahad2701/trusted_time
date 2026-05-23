@@ -163,8 +163,17 @@ final class TrustAnchor {
       final confIdx = json['confidence'] as int? ?? 0;
 
       // CRITICAL-6: Prevent RangeError or malformed state during deserialization.
-      final authLevel = (authIdx >= 0 && authIdx < NtsAuthLevel.values.length)
-          ? NtsAuthLevel.values[authIdx]
+      //
+      // Migration: v2.0.x persisted NtsAuthLevel as a 3-variant enum
+      //   (none=0, advisory=1, verified=2).
+      // v2.1.0 removes advisory, so the enum is now (none=0, verified=1).
+      // Remap old index 2 (verified) → 1 (verified); old index 1 (advisory)
+      // → 0 (none) so stale anchors degrade safely rather than misidentifying
+      // as verified.
+      final remappedAuthIdx = authIdx == 2 ? 1 : (authIdx == 1 ? 0 : authIdx);
+      final authLevel =
+          (remappedAuthIdx >= 0 && remappedAuthIdx < NtsAuthLevel.values.length)
+          ? NtsAuthLevel.values[remappedAuthIdx]
           : NtsAuthLevel.none;
 
       final confidence =

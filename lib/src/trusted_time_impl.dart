@@ -13,6 +13,7 @@ import 'infra/sync_observer.dart';
 import 'infra/consensus_cache.dart';
 import 'domain/time_sample.dart';
 import 'domain/marzullo_engine.dart';
+import 'drift_calibrator.dart';
 import 'trusted_time_estimate.dart';
 import 'trusted_time_mock.dart';
 
@@ -75,6 +76,7 @@ final class TrustedTimeImpl {
   final IntegrityMonitor _monitor;
   final ConsensusCache _cache;
   final SyncClock _syncClock;
+  final DriftCalibrator _driftCalibrator = DriftCalibrator();
   final _observers = <SyncObserver>{};
 
   TrustAnchor? _anchor;
@@ -150,9 +152,9 @@ final class TrustedTimeImpl {
       0.0,
       1.0,
     );
-    final errorMs =
-        (wallElapsed.inMilliseconds.abs() * _config.oscillatorDriftFactor)
-            .round();
+    final driftFactor =
+        _driftCalibrator.calibratedFactor ?? _config.oscillatorDriftFactor;
+    final errorMs = (wallElapsed.inMilliseconds.abs() * driftFactor).round();
 
     return TrustedTimeEstimate(
       estimatedTime: DateTime.fromMillisecondsSinceEpoch(
@@ -242,9 +244,10 @@ final class TrustedTimeImpl {
           event.reason == TamperReason.deviceRebooted) {
         _trusted = false;
 
-        // Critical: Purge the cache on anomaly. We do not want to re-anchor
-        // to a potentially poisoned or stale consensus result.
+        // Critical: Purge cache and drift calibration on anomaly. Stale drift
+        // observations spanning a clock jump or reboot are invalid.
         _cache.clear();
+        _driftCalibrator.reset();
 
         // Trigger an immediate background sync to recover trust.
         unawaited(_performSync());
@@ -279,6 +282,7 @@ final class TrustedTimeImpl {
     _anchor = anchor;
     _syncClock.update(anchor.uptimeMs, anchor.wallMs);
     _monitor.attach(anchor);
+    _driftCalibrator.recordAnchor(anchor.wallMs, anchor.networkUtcMs);
   }
 
   void _scheduleRefresh() {
