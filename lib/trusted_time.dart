@@ -27,6 +27,7 @@ library;
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:nts/nts.dart' show NtsRustLib;
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'src/exceptions.dart';
@@ -83,6 +84,11 @@ abstract final class TrustedTime {
       _timezoneInitialized = true;
     }
     if (_override != null) return;
+
+    // Required by package:nts before any ntsQuery call. Loads the bundled
+    // Rust dylib via Native Assets and wires the FRB v2 dispatch table.
+    // Subsequent calls are no-ops.
+    await NtsRustLib.init();
 
     // Use Web-compatible configuration on Web/WASM platforms
     if (config == null && kIsWeb) {

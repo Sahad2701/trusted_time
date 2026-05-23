@@ -1,5 +1,69 @@
 # Changelog
 
+## [2.1.0]
+
+### Breaking Changes
+
+- **`NtsAuthLevel.advisory` removed** (deprecated since v2.0.3).
+  Any exhaustive `switch` or `if` branch handling `.advisory` will fail at compile
+  time — simply delete the case. Code that previously treated `.advisory` as a
+  weak-auth signal should use `NtsAuthLevel.none` for unauthenticated sources and
+  `NtsAuthLevel.verified` for RFC 8915-authenticated ones.
+
+  **Persisted anchor migration**: `TrustAnchor.fromJson` safely remaps the old
+  three-variant ordinals to the new two-variant layout. Old `advisory` (index 1)
+  decodes as `none`; old `verified` (index 2) decodes as `verified`. No data loss,
+  no misidentification as verified.
+
+### Dependencies
+
+- **`nts` `^1.3.1` → `^5.0.0`**: Picks up the hand-written stable DTO layer,
+  the `NtsClient` session API, and per-query `serverStratum` on `NtsTimeSample`.
+  `RustLib` was renamed to `NtsRustLib` — handled internally; no consumer changes needed.
+  NTS server stratum is now automatically fed into source quality scoring.
+- **`flutter_secure_storage` `^10.0.0`** (lower bound unchanged — all 10.x are
+  API-compatible; consumers on any 10.x version are unaffected).
+- **`http` `">=1.0.0 <2.0.0"` → `^1.3.0`**: Tightens the lower bound to a known-good
+  version. Consumers already on 1.3.x+ are unaffected.
+- **`timezone` `">=0.9.0 <1.0.0"` → `">=0.9.0 <0.12.0"`**: Widens to cover the
+  current latest (0.11.0). Consumers on 0.9.x–0.11.x are all satisfied.
+
+### Added
+
+- **Adaptive Clock Drift Compensation** (`DriftCalibrator`): The engine now tracks
+  per-device oscillator drift across successive trust anchors and computes a
+  device-specific drift rate using median filtering. This rate replaces the static
+  `oscillatorDriftFactor` in `nowEstimated()` once a 30-minute observation window
+  has been accumulated. The calibrator enforces a 100 ppm sanity cap — measurements
+  above this threshold are discarded and the static fallback is retained. Drift state
+  is cleared on integrity violations (clock jump, reboot).
+
+- **Dynamic Time Source Quality Scoring** (`SourceQualityTracker`): The sync engine
+  now ranks sources each cycle based on a weighted score combining RTT/uncertainty
+  (40%), consensus participation rate (40%), and NTP stratum (20%). Higher-quality
+  sources are queried first to improve early-exit latency.
+
+  **Starvation guard**: Sources that haven't been queried within 5 consecutive cycles
+  are force-included regardless of their rank, keeping their quality estimates fresh
+  and preventing permanent exclusion of lower-ranked sources.
+
+  NTP stratum hints can be registered via `SourceQualityTracker.setStratum()` when
+  a source's stratum is known externally (e.g. via SNMP or NTP extension fields).
+
+### Tests
+
+- `test/drift_calibrator_test.dart`: 6 tests covering the observation window gate,
+  synthetic drift measurement, 100 ppm rejection, outlier filtering via median, and
+  reset behaviour.
+- `test/source_quality_tracker_test.dart`: 10 tests covering ranking by participation,
+  uncertainty, and stratum; the full starvation lifecycle; deduplication; and
+  out-of-range stratum handling.
+- `test/nts_auth_level_migration_test.dart`: 6 tests verifying the two-variant enum
+  shape and the v2.0.x → v2.1.0 `fromJson` ordinal migration (none, advisory→none,
+  verified, out-of-range).
+
+---
+
 ## [2.0.3]
 
 ### Changed
